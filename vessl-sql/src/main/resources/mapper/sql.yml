@@ -1,0 +1,17 @@
+
+name: org.vessl.sql.test.TestMapper
+methods:
+  - name: insert
+    type: INSERT
+    sql: 'insert into  test(name,age,addTime) values({bean.name},{bean.age},{addTime})'
+
+---
+
+name: org.vessl.mapper.TestMapper1
+methods:
+  - name: selectOne2
+    type: SELECT
+    sql: 'select * from bbb'
+  - name: insert
+    type: INSERT
+    sql: 'select * from ccc'
