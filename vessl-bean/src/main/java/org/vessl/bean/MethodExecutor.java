@@ -9,6 +9,7 @@ import java.util.List;
 @AllArgsConstructor
 public class MethodExecutor {
     private List<ClassExecuteHandler> classExecuteHandlers;
+    private int executeIndex;
     private Signature signature;
     private Method method;
     private Object target;
@@ -16,14 +17,14 @@ public class MethodExecutor {
 
 
     public Object invoke() throws Throwable {
-        if (classExecuteHandlers.size() == 0) {
+        if (classExecuteHandlers.size() <= executeIndex) {
             return method.invoke(target, args);
         }
-        ClassExecuteHandler classExecuteHandler = classExecuteHandlers.remove(0);
+        ClassExecuteHandler classExecuteHandler = classExecuteHandlers.get(executeIndex);
+        executeIndex++;
         classExecuteHandler.beforeHandle(signature, args);
         Object handle = null;
         try {
-            //handle = classExecuteHandler.handle(new MethodExecutor(classExecuteHandlers, signature, method, target, args));
             handle = classExecuteHandler.handle(this);
             classExecuteHandler.afterHandle(signature);
             classExecuteHandler.afterReturn(signature, args, handle);

@@ -1,1 +1,2 @@
 org.vessl.bean.config.YamlScanHandler
+org.vessl.bean.async.AsyncExecuteHandle

@@ -1,26 +1,34 @@
 package org.vessl.bean;
 
-import com.google.common.collect.*;
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
 import com.google.common.reflect.TypeToken;
 import net.sf.cglib.core.ReflectUtils;
 import net.sf.cglib.proxy.Enhancer;
 import org.apache.commons.lang3.StringUtils;
+import org.vessl.bean.async.Async;
 import org.vessl.bean.config.ConfigManager;
 import org.vessl.bean.config.Value;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.*;
 import java.util.*;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 public class BeanStore {
     /**
      * 按bean名保存,优先按类型加载,如果有多个则按名称(名称是唯一),如果没有名称中,则在类型中选一个
      */
-    private static Table<Class<?>, String, PackageObject> beanWithNameMap = HashBasedTable.create();
+    private static Map<String, PackageObject> beanWithNameMap = new HashMap<>();
+    private static Map<String, PackageObject> beanWithNameOriginMap = new HashMap<>();
     /**
      * 按类型保存 r父类,c类本身 v对象
      */
-    private static Table<Class<?>, Class<?>, PackageObject> beanWithClassMap = HashBasedTable.create();
+    private static ArrayListMultimap<Class<?>, PackageObject> beanWithClassMap = ArrayListMultimap.create();
+    private static ArrayListMultimap<Class<?>, PackageObject> beanWithClassOriginMap = ArrayListMultimap.create();
 
     /**
      * 用来判断注解上还有哪些注解
@@ -29,16 +37,13 @@ public class BeanStore {
     private static Multimap<Class<?>, Annotation> annotationObjectMap = ArrayListMultimap.create();
     private static List<Method> beanMethodList = new ArrayList<>();
 
-    //----- 代理相关
-    //需要被代理的类,及有代理注解的方法命令
-    private static Multimap<Class<?>, Method> pendingClassMap = ArrayListMultimap.create();
-    //需要被代理的类,及其方法上的注解集合
-    private static Multimap<Class<?>, Class<? extends Annotation>> pendingClassAnnotationMap = HashMultimap.create();
+
+    private static List<MethodAnnotation> annotationMethodList = new ArrayList<>();
 
     /**
      * 缓存aop处理
      */
-    private static List<Class<?>> executeHandlerList = new  ArrayList<>();
+    private static List<Class<?>> executeHandlerList = new ArrayList<>();
     //----- 代理相关
 
     private static Multimap<Class<?>, Field> pendingInjectMap = ArrayListMultimap.create();
@@ -47,30 +52,70 @@ public class BeanStore {
     private static Multimap<Class<?>, Method> pendingDestroyMap = ArrayListMultimap.create();
 
     public static <T> T getBean(Class<T> tClass) {
-        PackageObject packageObject = beanWithClassMap.get(tClass, tClass);
-        if (packageObject != null) {
-            return (T) packageObject.getObject();
+       /* List<PackageObject> packageObjects = beanWithClassProxyMap.get(tClass);
+        if (packageObjects.size() > 0) {
+            return (T) packageObjects.get(packageObjects.size() - 1).getObject();
+        }*/
+        List<PackageObject>  packageObjects = beanWithClassMap.get(tClass);
+        if (packageObjects.size() > 0) {
+            return (T) packageObjects.get(packageObjects.size() - 1).getObject();
         }
-        Map<Class<?>, PackageObject> row = beanWithClassMap.row(tClass);
-        for (PackageObject value : row.values()) {
-            return (T) value.getObject();
+
+        return null;
+    }
+    static <T> T getOriginBean(Class<T> tClass) {
+       /* List<PackageObject> packageObjects = beanWithClassProxyMap.get(tClass);
+        if (packageObjects.size() > 0) {
+            return (T) packageObjects.get(packageObjects.size() - 1).getObject();
+        }*/
+        List<PackageObject>  packageObjects = beanWithClassMap.get(tClass);
+        if (packageObjects.size() == 0) {
+            return null;
+        }
+        PackageObject packageObject = packageObjects.get(packageObjects.size() - 1);
+        if (packageObject.isProxy) {
+            return (T)packageObject.getTarget();
+        }
+        return (T)packageObject.getObject();
+
+
+    }
+
+    public static <T> T getBean(String name) {
+       /* PackageObject packageObject = beanWithNameProxyMap.get(name);
+        if (packageObject != null) {
+            return (T)packageObject.getObject();
+        }*/
+        PackageObject   packageObject = beanWithNameMap.get(name);
+        if (packageObject != null) {
+            return (T)packageObject.getObject();
         }
         return null;
     }
 
-    public static <T> T getBean(Class<T> tClass, String name) {
-        PackageObject o = beanWithNameMap.get(tClass, name);
-        if (o == null) {
+    public static <T> T getOriginBean(String name) {
+       /* PackageObject packageObject = beanWithNameProxyMap.get(name);
+        if (packageObject != null) {
+            return (T)packageObject.getObject();
+        }*/
+        PackageObject   packageObject = beanWithNameMap.get(name);
+        if (packageObject == null) {
             return null;
         }
-        return (T) o.getObject();
+        if (packageObject.isProxy) {
+            return (T)packageObject.getTarget();
+        }
+        return (T)packageObject.getObject();
+
     }
 
 
     static void addExecuteHandle(Class<?> clazz) {
-        if(!executeHandlerList.contains(clazz)) {
+        if (!executeHandlerList.contains(clazz)) {
             executeHandlerList.add(clazz);
         }
+        addBeanWithClass(null, clazz);
+
     }
 
     static void inject() {
@@ -82,7 +127,7 @@ public class BeanStore {
             Class<?> fieldType = field.getType();
             Object bean = null;
             if (StringUtils.isNotEmpty(value)) {
-                bean = getBean(fieldType, value);
+                bean = getBean(value);
 
             } else {
                 bean = getBean(fieldType);
@@ -106,7 +151,7 @@ public class BeanStore {
                 }
                 continue;
             }
-            Object targetClass = getBean(aClass);
+            Object targetClass = getOriginBean(aClass);
             boolean flag = field.canAccess(targetClass);
             field.setAccessible(true);
             try {
@@ -136,8 +181,7 @@ public class BeanStore {
             if (filedValue == null) {
                 continue;
             }
-            Class<?> fieldType = field.getType();
-            Object targetClass = getBean(aClass);
+            Object targetClass = getOriginBean(aClass);
 
             boolean flag = field.canAccess(targetClass);
             field.setAccessible(true);
@@ -153,8 +197,8 @@ public class BeanStore {
 
     private static <T> Map<String, T> getFileValueWithMap(Class<?> clazz) {
         Map<String, T> map = new HashMap<>();
-        Map<Class<?>, PackageObject> row = beanWithClassMap.row(clazz);
-        for (PackageObject value : row.values()) {
+        List<PackageObject> rows = beanWithClassMap.get(clazz);
+        for (PackageObject value : rows) {
             map.put(value.getBeanName(), (T) value.getObject());
         }
 
@@ -164,8 +208,8 @@ public class BeanStore {
 
     private static <T> List<T> getFileValueWithList(Class<?> clazz) {
         List<T> list = new ArrayList<>();
-        Map<Class<?>, PackageObject> row = beanWithClassMap.row(clazz);
-        for (PackageObject value : row.values()) {
+        List<PackageObject> rows = beanWithClassMap.get(clazz);
+        for (PackageObject value : rows) {
             list.add((T) value.getObject());
         }
 
@@ -282,46 +326,46 @@ public class BeanStore {
     }
 
     static void executeHandle() {
-        executeHandlerList.sort(BeanOrder::order);
-        //缓存代理类型和其对象
-        Map<Class<?>, ClassExecuteHandler> executeHandleMap = new HashMap<>();
-        //缓存代理注解和代理类的关系
-        Multimap<Class<? extends Annotation>, Class<?>> pendingAnnotationMap = ArrayListMultimap.create();
-        for (Class<?> clazz : executeHandlerList) {
 
-            try {
-                ClassExecuteHandler classExecuteHandler = (ClassExecuteHandler) clazz.getDeclaredConstructor().newInstance();
-                executeHandleMap.put(clazz, classExecuteHandler);
-                Class<? extends Annotation>[] annotationClasses = classExecuteHandler.targetAnnotation();
-                for (Class<? extends Annotation> aClass : annotationClasses) {
-                    pendingAnnotationMap.put(aClass, clazz);
-                }
-            } catch (InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchMethodException ignored) {
+        //缓存代理注解和代理类的关系
+        HashMultimap<Class<? extends Annotation>, ClassExecuteHandler> pendingAnnotationMap = HashMultimap.create();
+        for (Class<?> clazz : executeHandlerList) {
+            ClassExecuteHandler classExecuteHandler = (ClassExecuteHandler) getBean(clazz);
+            Class<? extends Annotation>[] annotationClasses = classExecuteHandler.targetAnnotation();
+            for (Class<? extends Annotation> aClass : annotationClasses) {
+                pendingAnnotationMap.put(aClass, classExecuteHandler);
             }
+
         }
-        for (Class<?> aClass : pendingClassMap.keySet()) {
-            Collection<Class<? extends Annotation>> classes = pendingClassAnnotationMap.get(aClass);
-            Set<Class<?>> set = new HashSet<>();
-            List<ClassExecuteHandler> classExecuteHandlers = new ArrayList<>();
-            for (Class<? extends Annotation> annotationClass : classes) {
-                Collection<Class<?>> classes1 = pendingAnnotationMap.get(annotationClass);
-                set.addAll(classes1);
+        for (MethodAnnotation methodAnnotation : annotationMethodList) {
+            List<Class<? extends Annotation>> needRemove = new ArrayList<>();
+            HashMultimap<Class<? extends Annotation>, ClassExecuteHandler> classExecuteHandlers = HashMultimap.create();
+            for (Class<? extends Annotation> annotationClass : methodAnnotation.annotations()) {
+                Set<ClassExecuteHandler> tmpClassHandlers = pendingAnnotationMap.get(annotationClass);
+                if (tmpClassHandlers.isEmpty()) {
+                    needRemove.add(annotationClass);
+                    continue;
+                }
+                classExecuteHandlers.putAll(annotationClass, tmpClassHandlers);
+
             }
-            for (Class<?> aClass1 : set) {
-                classExecuteHandlers.add(executeHandleMap.get(aClass1));
+            //去掉没有代理的注解
+            methodAnnotation.removeAnnotation(needRemove);
+
+            if (classExecuteHandlers.isEmpty()) {
+                continue;
             }
-            Object bean = getBean(aClass);
-            BeanClassProxy beanClassProxy = new BeanClassProxy(classExecuteHandlers, bean, pendingClassMap.get(aClass));
+            Object bean = getBean(methodAnnotation.getClazz());
+            BeanClassProxy beanClassProxy = new BeanClassProxy(classExecuteHandlers, bean, methodAnnotation);
             Enhancer enhancer = new Enhancer();
-            enhancer.setSuperclass(aClass);
+            enhancer.setSuperclass(methodAnnotation.getClazz());
             enhancer.setCallback(beanClassProxy);
             Object o = enhancer.create();
-            addWithClassObject(aClass, o);
+            addProxyBean(methodAnnotation.getClazz(), o, methodAnnotation.getClazz().getName());
         }
 
-        pendingClassAnnotationMap.clear();
+        annotationMethodList.clear();
         executeHandlerList.clear();
-        pendingClassMap.clear();
     }
 
     static void addAnnotationMap(Class<?> annotationClass) {
@@ -344,7 +388,6 @@ public class BeanStore {
         if (Modifier.isAbstract(clazz.getModifiers())) {
             return;
         }
-
         addBeanWithClass(beanName, clazz);
     }
 
@@ -385,34 +428,47 @@ public class BeanStore {
     }
 
     private static void isNeedProxy(Class<?> clazz) {
+        if (ClassExecuteHandler.class.isAssignableFrom(clazz)) {
+            return;
+
+        }
         //如果方法上有注解,需要先缓存起来,看是否有代理类
         for (Method method : clazz.getMethods()) {
             if (Object.class.equals(method.getDeclaringClass())) {
                 continue;
             }
             Annotation[] methodAnnotations = method.getAnnotations();
-            boolean isAdd = false;
+            MethodAnnotation mAnnotation = new MethodAnnotation(clazz);
             for (Annotation methodAnnotation : methodAnnotations) {
-                if (methodAnnotation.annotationType().getName().startsWith("java")) {
+                Class<? extends Annotation> annotationType = methodAnnotation.annotationType();
+                if (annotationType.getName().startsWith("java")) {
                     continue;
                 }
-                if (methodAnnotation.annotationType() == Bean.class) {
+                if (annotationType == Bean.class) {
                     beanMethodList.add(method);
                     continue;
                 }
-                if (methodAnnotation.annotationType() == Init.class) {
+                if (annotationType == Init.class) {
                     pendingInitMap.put(clazz, method);
                     continue;
                 }
-                if (methodAnnotation.annotationType() == Destroy.class) {
+                if (annotationType == Destroy.class) {
                     pendingDestroyMap.put(clazz, method);
                     continue;
                 }
-                pendingClassAnnotationMap.put(clazz, methodAnnotation.annotationType());
-                isAdd = true;
+                if (annotationType == Async.class) {
+                    if (getBean(ThreadPoolExecutor.class) == null) {
+                        ThreadPoolExecutor threadPoolExecutor = new ThreadPoolExecutor(Runtime.getRuntime().availableProcessors(), Runtime.getRuntime().availableProcessors() * 2,
+                                60L, TimeUnit.MILLISECONDS,
+                                new LinkedBlockingQueue<Runnable>(100));
+                        addWithClassObject(ThreadPoolExecutor.class, threadPoolExecutor);
+                    }
+                }
+                mAnnotation.add(method, annotationType);
+
             }
-            if (isAdd) {
-                pendingClassMap.put(clazz, method);
+            if (!mAnnotation.isEmpty()) {
+                annotationMethodList.add(mAnnotation);
             }
 
         }
@@ -422,7 +478,7 @@ public class BeanStore {
     static void addBeanWithClass(String beanName, Class<?> clazz) {
 
         if (StringUtils.isEmpty(beanName)) {
-            beanName = StringUtils.uncapitalize(clazz.getSimpleName());
+            beanName = clazz.getName();
         }
         try {
             Object o = clazz.getDeclaredConstructor().newInstance();
@@ -436,20 +492,35 @@ public class BeanStore {
     }
 
     public static void addWithClassObject(Class<?> clazz, Object obj) {
-        String beanName = StringUtils.uncapitalize(clazz.getSimpleName());
+        String beanName = clazz.getName();
         addBean(clazz, obj, beanName);
 
     }
 
     private static void addBean(Class<?> clazz, Object obj, String beanName) {
         PackageObject packageObject = new PackageObject(beanName, obj);
-        beanWithNameMap.put(clazz, beanName, packageObject);
-        beanWithClassMap.put(clazz, clazz, packageObject);
+        beanWithNameMap.put(beanName, packageObject);
+        beanWithClassMap.put(clazz, packageObject);
         List<Class<?>> superClass = getSuperClass(clazz);
         superClass.addAll(getSuperInterface(clazz));
         for (Class<?> aClass : superClass) {
-            beanWithClassMap.put(aClass, clazz, packageObject);
-            beanWithNameMap.put(aClass, beanName, packageObject);
+            beanWithClassMap.put(aClass, packageObject);
+        }
+    }
+
+    private static void addProxyBean(Class<?> clazz, Object obj, String beanName) {
+        PackageObject object = beanWithNameMap.get(beanName);
+        PackageObject packageObject = new PackageObject(beanName, obj);
+        if(object!=null) {
+            packageObject.setProxy(true);
+            packageObject.setTarget(object.getObject());
+        }
+        beanWithNameMap.put(beanName, packageObject);
+        beanWithClassMap.put(clazz, packageObject);
+        List<Class<?>> superClass = getSuperClass(clazz);
+        superClass.addAll(getSuperInterface(clazz));
+        for (Class<?> aClass : superClass) {
+            beanWithClassMap.put(aClass, packageObject);
         }
     }
 

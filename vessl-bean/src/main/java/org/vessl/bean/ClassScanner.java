@@ -128,9 +128,13 @@ public class ClassScanner {
         classScanningHandle();
 
         /**
-         * 从@Bean注解的方法初化类
+         * 从@Bean注解的方法加载类
          */
         BeanStore.initBeanMethod();
+        /**
+         * 设置proxy
+         */
+        BeanStore.executeHandle();
         /**
          * 依赖注入
          */
@@ -139,10 +143,7 @@ public class ClassScanner {
         BeanStore.setFiledValue();
         //调用@Init注解的方法
         BeanStore.invokeInit();
-        /**
-         * 设置proxy
-         */
-        BeanStore.executeHandle();
+
 
         /**
          * 类扫描完成
@@ -345,22 +346,24 @@ public class ClassScanner {
         if(baseFileScanHandlerList.contains(clazz)){
             return;
         }
+        if (clazz.isEnum()) {
+            return;
+        }
+        if (clazz.isAnnotation()) {
+            BeanStore.addAnnotationMap(clazz);
+            return;
+        }
         if (!clazz.isInterface() && FileScanHandler.class.isAssignableFrom(clazz)) {
-            fileScanHandlerList.add(clazz);
+            if(!fileScanHandlerList.contains(clazz)) {
+                fileScanHandlerList.add(clazz);
+            }
         } else if (!clazz.isInterface() && ClassScanHandler.class.isAssignableFrom(clazz)) {
-            classScanHandleList.add(clazz);
+            if(!classScanHandleList.contains(clazz)) {
+                classScanHandleList.add(clazz);
+            }
         } else if (!clazz.isInterface() && ClassExecuteHandler.class.isAssignableFrom(clazz)) {
-            BeanStore.addExecuteHandle(clazz);
-
-        } else {
-            if (clazz.isEnum()) {
-                return;
-            }
-            if (clazz.isAnnotation()) {
-                BeanStore.addAnnotationMap(clazz);
-                return;
-            }
-
+             BeanStore.addExecuteHandle(clazz);
+        }  else {
 
             Annotation[] annotations = clazz.getAnnotations();
             boolean isBean = false;

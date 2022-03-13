@@ -9,18 +9,18 @@ public class SqlSession {
 
    static ThreadLocal<Connection> connectionThreadLocal = new ThreadLocal<>();
 
-    public <T> T getMapper(Class<T> tClass) {
+    public static <T> T getMapper(Class<T> tClass) {
         return MapperManager.getMapper(tClass);
     }
 
-    public void beginTrans() throws SQLException {
+    public static void beginTrans() throws SQLException {
         DataSource dataSource = MapperManager.getDataSource();
         Connection connection = dataSource.getConnection();
         connection.setAutoCommit(false);
         connectionThreadLocal.set(connection);
     }
 
-    public void commit() throws SQLException {
+    public static void commit() throws SQLException {
         Connection connection = connectionThreadLocal.get();
         connectionThreadLocal.remove();
         try (connection){
@@ -31,7 +31,7 @@ public class SqlSession {
 
 
     }
-    public void rollback() throws SQLException {
+    public static void rollback() throws SQLException {
         Connection connection = connectionThreadLocal.get();
         connectionThreadLocal.remove();
         try (connection){
@@ -41,7 +41,7 @@ public class SqlSession {
         }
     }
 
-    public int executeSql(String sql) throws SQLException {
+    public static int executeSql(String sql) throws SQLException {
         boolean isTrans = true;
         Connection connection = SqlSession.connectionThreadLocal.get();
         if (connection == null) {
