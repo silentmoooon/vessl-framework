@@ -2,12 +2,12 @@ package org.vessl.bean;
 
 import java.lang.reflect.InvocationTargetException;
 
-public class Startup {
+public class VesslStartup {
     ClassScanner classScanner = new ClassScanner();
 
     public void startup() {
         try {
-            classScanner.scan();
+            classScanner.init();
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                 try {
                     shutdownHook();
@@ -15,7 +15,7 @@ public class Startup {
                     e.printStackTrace();
                 }
             }));
-        } catch (InvocationTargetException | IllegalAccessException e) {
+        } catch (InvocationTargetException | IllegalAccessException | ClassNotFoundException e) {
             e.printStackTrace();
         }
     }

@@ -48,7 +48,6 @@ public class ClassScanner {
      */
     private static Map<Class<?>, ClassScanHandler> classScanHandleObjectMap = new HashMap<>();
 
-
     /**
      * 缓存文件扫描处理类
      */
@@ -57,15 +56,15 @@ public class ClassScanner {
     private static List<Class<?>> baseFileScanHandlerList = Arrays.asList(BaseClassScanHandler.class, YamlScanHandler.class);
 
 
-    static void addHandle(Class<?> clazz){
+    static void addHandle(Class<?> clazz) {
 
-        if(ClassScanHandler.class.isAssignableFrom(clazz)) {
+        if (ClassScanHandler.class.isAssignableFrom(clazz)) {
             if (!classScanHandleList.contains(clazz)) {
                 classScanHandleList.add(clazz);
             }
 
         } else if (FileScanHandler.class.isAssignableFrom(clazz)) {
-            if(!fileScanHandlerList.contains(clazz)) {
+            if (!fileScanHandlerList.contains(clazz)) {
                 fileScanHandlerList.add(clazz);
             }
         } else if (ClassExecuteHandler.class.isAssignableFrom(clazz)) {
@@ -73,87 +72,79 @@ public class ClassScanner {
 
         }
     }
-    //----- 代理相关
 
 
-    public void scan() throws InvocationTargetException, IllegalAccessException {
-        scan("");
+    public void init() throws InvocationTargetException, IllegalAccessException, ClassNotFoundException {
+        scanClass();
+
+        baseFileScanHandle();
+
+        fileScanHandle();
+
+        classScanningHandle();
+
+
+        BeanStore.scanWithBeanMethod();
+
+        BeanStore.executeHandle();
+
+        BeanStore.inject();
+
+        BeanStore.setFiledValue();
+
+        BeanStore.invokeInit();
+
+        classScanEndHandle();
     }
 
-    public void scan(String packageName) throws InvocationTargetException, IllegalAccessException {
+    public void scanClass() throws ClassNotFoundException {
+        String mainClassName = "";
+        String packageName = "";
+        String MANIFEST_PATH = "META-INF/MANIFEST.MF";
+        InputStream inputStream = Thread.currentThread().getContextClassLoader().getResourceAsStream(MANIFEST_PATH);
+        if (inputStream != null) {
+            try {
+                Manifest manifest = new Manifest(inputStream);
+                Attributes entries = manifest.getMainAttributes();
+                String MANIFEST_ATTR_MAIN = "Main-Class";
+                mainClassName = entries.getValue(MANIFEST_ATTR_MAIN);
+            } catch (IOException ignored) {
 
+            }
+        }
+        if (StringUtils.isEmpty(mainClassName)) {
+            StackTraceElement[] stackTrace = new RuntimeException().getStackTrace();
+            mainClassName = stackTrace[stackTrace.length - 1].getClassName();
+
+        }
+        Class<?> aClass = Thread.currentThread().getContextClassLoader().loadClass(mainClassName);
+        Scan annotation = aClass.getAnnotation(Scan.class);
+        if (annotation != null && StringUtils.isNotEmpty(annotation.value())) {
+            packageName = annotation.value();
+        }
         if (StringUtils.isEmpty(packageName)) {
-            String MANIFEST_PATH = "META-INF/MANIFEST.MF";
-            InputStream inputStream = Thread.currentThread().getContextClassLoader().getResourceAsStream(MANIFEST_PATH);
-            if (inputStream != null) {
-                try {
-                    Manifest manifest = new Manifest(inputStream);
-                    Attributes entries = manifest.getMainAttributes();
-                    String MANIFEST_ATTR_MAIN = "Main-Class";
-                    packageName = entries.getValue(MANIFEST_ATTR_MAIN);
-                } catch (IOException ignored) {
 
-                }
-            }
-            if (StringUtils.isEmpty(packageName)) {
-                StackTraceElement[] stackTrace = new RuntimeException().getStackTrace();
-                packageName = stackTrace[stackTrace.length - 1].getClassName();
-
-            }
-            String[] split = packageName.split("\\.");
+            String[] split = mainClassName.split("\\.");
             if (split.length == 2) {
                 packageName = split[0];
             }
             if (split.length > 2) {
                 packageName = split[0] + "." + split[1];
             }
-            scanClass(packageName);
-        } else if (packageName.contains(",")) {
-            String[] split = packageName.split(",");
-            for (String s : split) {
-                scanClass(s);
-            }
-        } else {
-            scanClass(packageName);
+
         }
-
-        //基本文件扫描,加载配置文件和SPI声明的handler类
-        baseFileScanHandle();
-        //文件扫描
-        fileScanHandle();
-
-        /**
-         * 类扫描
-         */
-        classScanningHandle();
-
-        /**
-         * 从@Bean注解的方法加载类
-         */
-        BeanStore.initBeanMethod();
-        /**
-         * 设置proxy
-         */
-        BeanStore.executeHandle();
-        /**
-         * 依赖注入
-         */
-        BeanStore.inject();
-        //为@value注解的字段赋值
-        BeanStore.setFiledValue();
-        //调用@Init注解的方法
-        BeanStore.invokeInit();
-
-
-        /**
-         * 类扫描完成
-         */
-        classScanEndHandle();
+        String[] split = packageName.split(",");
+        for (String s : split) {
+            scanClass(s);
+        }
 
     }
 
 
-    private void baseFileScanHandle(){
+    /**
+     * 基本文件扫描,加载配置文件和SPI声明的handler类
+     */
+    private void baseFileScanHandle() {
 
         for (Class<?> fileScan : baseFileScanHandlerList) {
             try {
@@ -169,6 +160,9 @@ public class ClassScanner {
 
     }
 
+    /**
+     * 类扫描
+     */
     private void classScanningHandle() {
         classScanHandleList.sort(BeanOrder::order);
         for (Class<?> clazz : classScanHandleList) {
@@ -343,52 +337,44 @@ public class ClassScanner {
     }
 
     private void collectionClass(Class<?> clazz) {
-        if(baseFileScanHandlerList.contains(clazz)){
-            return;
-        }
+
         if (clazz.isEnum()) {
             return;
         }
         if (clazz.isAnnotation()) {
-            BeanStore.addAnnotationMap(clazz);
             return;
         }
-        if (!clazz.isInterface() && FileScanHandler.class.isAssignableFrom(clazz)) {
-            if(!fileScanHandlerList.contains(clazz)) {
-                fileScanHandlerList.add(clazz);
-            }
-        } else if (!clazz.isInterface() && ClassScanHandler.class.isAssignableFrom(clazz)) {
-            if(!classScanHandleList.contains(clazz)) {
-                classScanHandleList.add(clazz);
-            }
-        } else if (!clazz.isInterface() && ClassExecuteHandler.class.isAssignableFrom(clazz)) {
-             BeanStore.addExecuteHandle(clazz);
-        }  else {
+        if (clazz.getAnnotation(Handle.class) != null) {
+            addHandle(clazz);
+            return;
+        }
 
-            Annotation[] annotations = clazz.getAnnotations();
-            boolean isBean = false;
-            String beanName = null;
-            for (Annotation annotation : annotations) {
-                if (annotation instanceof Bean bean) {
-                    beanName = bean.value();
+        Annotation[] annotations = clazz.getAnnotations();
+        boolean isBean = false;
+        String beanName = null;
+        for (Annotation annotation : annotations) {
+            if (annotation instanceof Bean bean) {
+                beanName = bean.value();
+                isBean = true;
+
+            } else {
+                Bean beanAnnotation = annotation.annotationType().getAnnotation(Bean.class);
+                if (beanAnnotation != null) {
+                    beanName = beanAnnotation.value();
                     isBean = true;
-
-                } else {
-                    Bean beanAnnotation = annotation.annotationType().getAnnotation(Bean.class);
-                    if (beanAnnotation != null) {
-                        beanName = beanAnnotation.value();
-                        isBean = true;
-                    }
-
                 }
+            }
+            if (!annotation.annotationType().getCanonicalName().startsWith("java.")) {
                 annotationClassMap.put(annotation.annotationType(), clazz);
             }
-            if (isBean) {
-                BeanStore.add(beanName, clazz);
-            }
-
         }
-    }
 
+        if (isBean) {
+
+            BeanStore.add(beanName, clazz);
+        }
+
+
+    }
 
 }

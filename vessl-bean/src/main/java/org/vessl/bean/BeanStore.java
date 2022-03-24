@@ -52,10 +52,7 @@ public class BeanStore {
     private static Multimap<Class<?>, Method> pendingDestroyMap = ArrayListMultimap.create();
 
     public static <T> T getBean(Class<T> tClass) {
-       /* List<PackageObject> packageObjects = beanWithClassProxyMap.get(tClass);
-        if (packageObjects.size() > 0) {
-            return (T) packageObjects.get(packageObjects.size() - 1).getObject();
-        }*/
+
         List<PackageObject>  packageObjects = beanWithClassMap.get(tClass);
         if (packageObjects.size() > 0) {
             return (T) packageObjects.get(packageObjects.size() - 1).getObject();
@@ -64,10 +61,7 @@ public class BeanStore {
         return null;
     }
     static <T> T getOriginBean(Class<T> tClass) {
-       /* List<PackageObject> packageObjects = beanWithClassProxyMap.get(tClass);
-        if (packageObjects.size() > 0) {
-            return (T) packageObjects.get(packageObjects.size() - 1).getObject();
-        }*/
+
         List<PackageObject>  packageObjects = beanWithClassMap.get(tClass);
         if (packageObjects.size() == 0) {
             return null;
@@ -82,10 +76,7 @@ public class BeanStore {
     }
 
     public static <T> T getBean(String name) {
-       /* PackageObject packageObject = beanWithNameProxyMap.get(name);
-        if (packageObject != null) {
-            return (T)packageObject.getObject();
-        }*/
+
         PackageObject   packageObject = beanWithNameMap.get(name);
         if (packageObject != null) {
             return (T)packageObject.getObject();
@@ -94,10 +85,7 @@ public class BeanStore {
     }
 
     public static <T> T getOriginBean(String name) {
-       /* PackageObject packageObject = beanWithNameProxyMap.get(name);
-        if (packageObject != null) {
-            return (T)packageObject.getObject();
-        }*/
+
         PackageObject   packageObject = beanWithNameMap.get(name);
         if (packageObject == null) {
             return null;
@@ -117,7 +105,9 @@ public class BeanStore {
         addBeanWithClass(null, clazz);
 
     }
-
+    /**
+     * 依赖注入
+     */
     static void inject() {
         for (Map.Entry<Class<?>, Field> entry : pendingInjectMap.entries()) {
             Class<?> aClass = entry.getKey();
@@ -168,6 +158,7 @@ public class BeanStore {
 
     }
 
+    //为@value注解的字段赋值
     static void setFiledValue() {
         for (Map.Entry<Class<?>, Field> entry : pendingSetValueMap.entries()) {
             Class<?> aClass = entry.getKey();
@@ -265,6 +256,11 @@ public class BeanStore {
         return filedValue;
     }
 
+    /**
+     * 调用@Init注解的方法
+     * @throws InvocationTargetException
+     * @throws IllegalAccessException
+     */
     static void invokeInit() throws InvocationTargetException, IllegalAccessException {
         for (Map.Entry<Class<?>, Method> entry : pendingInitMap.entries()) {
             Object targetClass = getBean(entry.getKey());
@@ -284,8 +280,10 @@ public class BeanStore {
             entry.getValue().setAccessible(flag);
         }
     }
-
-    static void initBeanMethod() {
+    /**
+     * 从@Bean注解的方法加载类
+     */
+    static void scanWithBeanMethod() {
         Map<String, Object> objectMap = new HashMap<>();
         for (Method method : beanMethodList) {
             Bean annotation = method.getAnnotation(Bean.class);
@@ -325,6 +323,9 @@ public class BeanStore {
 
     }
 
+    /**
+     * 设置proxy
+     */
     static void executeHandle() {
 
         //缓存代理注解和代理类的关系
@@ -368,6 +369,7 @@ public class BeanStore {
         executeHandlerList.clear();
     }
 
+
     static void addAnnotationMap(Class<?> annotationClass) {
         for (Annotation annotation : annotationClass.getAnnotations()) {
             if (!annotation.annotationType().getCanonicalName().startsWith("java.")) {
@@ -388,6 +390,7 @@ public class BeanStore {
         if (Modifier.isAbstract(clazz.getModifiers())) {
             return;
         }
+
         addBeanWithClass(beanName, clazz);
     }
 
