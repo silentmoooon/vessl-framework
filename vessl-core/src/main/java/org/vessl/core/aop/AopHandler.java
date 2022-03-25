@@ -16,30 +16,27 @@ public class AopHandler {
     /**
      * 被注解的方法,可能会有AOP类拦截
      */
-    private static List<ClassMethodAnnotation> annotationMethodList = new ArrayList<>();
+    private  List<ClassMethodAnnotation> annotationMethodList = new ArrayList<>();
 
     /**
      * 缓存aop拦截器类
      */
-    private static List<Class<?>> executeInterceptorList = new ArrayList<>();
+    private  List<Class<?>> executeInterceptorList = new ArrayList<>();
 
-
-    public static void isAopClass(Class<?> clazz) {
-        Aop aop = clazz.getDeclaredAnnotation(Aop.class);
-        if (aop != null) {
-            if (!executeInterceptorList.contains(clazz)) {
-                executeInterceptorList.add(clazz);
-            }
-        }
+    public void addExecuteInterceptor(Class<?> clazz) {
+        if (!executeInterceptorList.contains(clazz)) {
+            executeInterceptorList.add(clazz);
+        };
     }
-    public static void addClassAnnotationMethod(ClassMethodAnnotation classMethodAnnotation){
+
+    public  void addClassAnnotationMethod(ClassMethodAnnotation classMethodAnnotation){
         annotationMethodList.add(classMethodAnnotation);
     }
 
     /**
      * 设置proxy
      */
-    public static void initAop() {
+    public  void initAop() {
 
         //缓存代理注解和代理类的关系
         HashMultimap<Class<? extends Annotation>, ExecuteInterceptor> pendingAnnotationMap = HashMultimap.create();

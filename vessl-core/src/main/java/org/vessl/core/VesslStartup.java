@@ -1,5 +1,6 @@
 package org.vessl.core;
 
+import org.vessl.core.aop.AopHandler;
 import org.vessl.core.bean.BeanStore;
 import org.vessl.core.bean.ClassScanner;
 import org.vessl.core.spi.PluginHandler;
@@ -7,7 +8,11 @@ import org.vessl.core.spi.PluginHandler;
 import java.lang.reflect.InvocationTargetException;
 
 public class VesslStartup {
-    ClassScanner classScanner = new ClassScanner();
+    BeanStore beanStore = new BeanStore();
+    PluginHandler pluginHandler = new PluginHandler(beanStore);
+    AopHandler aopHandler = new AopHandler();
+    ClassScanner classScanner = new ClassScanner(beanStore, pluginHandler, aopHandler);
+
 
     public void startup() {
         try {
@@ -23,12 +28,14 @@ public class VesslStartup {
             e.printStackTrace();
         }
     }
+
     private void shutdownHook() throws InvocationTargetException, IllegalAccessException {
-        PluginHandler.classDestroyHandle();
-        BeanStore.invokeDestroy();
+        pluginHandler.classDestroyHandle();
+        beanStore.invokeDestroy();
         shutdown();
     }
-    public void shutdown(){
+
+    public void shutdown() {
 
     }
 }

@@ -1,9 +1,9 @@
 package org.vessl.web.handle;
 
 
-import org.vessl.core.spi.ClassScanPlugin;
-import org.vessl.core.bean.config.Value;
-import org.vessl.core.spi.Plugin;
+import org.vessl.base.bean.config.Value;
+import org.vessl.base.spi.ClassScanPlugin;
+import org.vessl.base.spi.Plugin;
 import org.vessl.web.annotation.*;
 
 import java.lang.annotation.Annotation;

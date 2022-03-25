@@ -1,7 +1,7 @@
 package org.vessl.sql.tx;
 
 import net.sf.cglib.core.Signature;
-import org.vessl.core.aop.ExecuteInterceptor;
+import org.vessl.base.aop.ExecuteInterceptor;
 import org.vessl.sql.handle.SqlSession;
 
 import java.lang.annotation.Annotation;

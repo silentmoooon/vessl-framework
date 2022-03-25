@@ -1,10 +1,10 @@
 package org.vessl.sql.handle;
 
 import org.apache.commons.lang3.StringUtils;
-import org.vessl.core.spi.Plugin;
+import org.vessl.base.spi.FileScanPlugin;
+import org.vessl.base.spi.Plugin;
 import org.vessl.sql.bean.SqlClassBean;
 import org.vessl.sql.bean.SqlMethodBean;
-import org.vessl.core.spi.FileScanPlugin;
 import org.vessl.sql.constant.SqlType;
 import org.yaml.snakeyaml.TypeDescription;
 import org.yaml.snakeyaml.Yaml;

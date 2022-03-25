@@ -1,6 +1,7 @@
 package org.vessl.sql.annotation;
 
-import org.vessl.core.bean.Bean;
+
+import org.vessl.base.bean.Bean;
 
 import java.lang.annotation.*;
 

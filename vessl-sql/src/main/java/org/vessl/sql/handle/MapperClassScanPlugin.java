@@ -1,10 +1,10 @@
 package org.vessl.sql.handle;
 
 import com.zaxxer.hikari.HikariConfig;
-import org.vessl.core.spi.ClassScanPlugin;
-import org.vessl.core.bean.Order;
-import org.vessl.core.bean.config.Value;
-import org.vessl.core.spi.Plugin;
+import org.vessl.base.bean.Order;
+import org.vessl.base.bean.config.Value;
+import org.vessl.base.spi.ClassScanPlugin;
+import org.vessl.base.spi.Plugin;
 import org.vessl.sql.annotation.Mapper;
 
 import java.lang.annotation.Annotation;

@@ -1,13 +1,24 @@
 package org.vessl.core.bean;
 
 import org.apache.commons.lang3.StringUtils;
+import org.vessl.core.aop.Aop;
 import org.vessl.core.aop.AopHandler;
+import org.vessl.core.aop.ClassMethodAnnotation;
+import org.vessl.core.aop.ExecuteInterceptor;
+import org.vessl.core.bean.config.Value;
+import org.vessl.core.bean.config.YamlScanPlugin;
+import org.vessl.core.spi.BasePluginScanPlugin;
+import org.vessl.core.spi.Plugin;
 import org.vessl.core.spi.PluginHandler;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.net.JarURLConnection;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -28,30 +39,41 @@ import java.util.jar.Manifest;
  */
 public class ClassScanner {
 
+    private BeanStore beanStore;
+    private PluginHandler pluginHandler;
+    private AopHandler aopHandler;
 
+    public ClassScanner(BeanStore beanStore, PluginHandler pluginHandler, AopHandler aopHandler) {
 
+        this.beanStore = beanStore;
+        this.pluginHandler = pluginHandler;
+        this.aopHandler = aopHandler;
+
+        pluginHandler.addBasePlugin(new YamlScanPlugin());
+        pluginHandler.addBasePlugin(new BasePluginScanPlugin(this));
+    }
 
 
     public void init() throws InvocationTargetException, IllegalAccessException, ClassNotFoundException {
         scanClass();
 
-        PluginHandler.baseFileScan();
+        pluginHandler.baseFileScan();
 
-        PluginHandler.fileScan();
+        pluginHandler.fileScan();
 
-        PluginHandler.classScanning();
+        pluginHandler.classScanning();
 
-        AopHandler.initAop();
+        aopHandler.initAop();
 
-        BeanStore.inject();
+        beanStore.inject();
 
-        BeanStore.setConfigValue();
+        beanStore.setConfigValue();
 
-        BeanStore.invokeInit();
+        beanStore.invokeInit();
 
-        BeanStore.scanWithBeanMethod();
+        beanStore.scanWithBeanMethod();
 
-        PluginHandler.classScanEnd();
+        pluginHandler.classScanEnd();
     }
 
     public void scanClass() throws ClassNotFoundException {
@@ -150,7 +172,7 @@ public class ClassScanner {
                 } catch (ClassNotFoundException e) {
                     return;
                 }
-                BeanStore.collectionClass(clazz);
+                collectionClass(clazz);
             }
         }
 
@@ -186,11 +208,149 @@ public class ClassScanner {
                     e.printStackTrace();
                     continue;
                 }
-                BeanStore.collectionClass(clazz);
+                collectionClass(clazz);
             }
 
         }
 
+    }
+
+    public void collectionClass(Class<?> clazz) {
+
+        if (clazz.isEnum()) {
+            return;
+        }
+        if (clazz.isAnnotation()) {
+            return;
+        }
+        if (clazz.getAnnotation(Plugin.class) != null) {
+            pluginHandler.addPlugin(clazz);
+            return;
+        }
+
+        Annotation[] annotations = clazz.getAnnotations();
+        boolean isBean = false;
+        String beanName = null;
+        for (Annotation annotation : annotations) {
+            if (annotation instanceof Bean bean) {
+                beanName = bean.value();
+                isBean = true;
+
+            } else {
+                Bean beanAnnotation = annotation.annotationType().getAnnotation(Bean.class);
+                if (beanAnnotation != null) {
+                    beanName = beanAnnotation.value();
+                    isBean = true;
+                }
+            }
+            if (!annotation.annotationType().getCanonicalName().startsWith("java.")) {
+                pluginHandler.addAnnotationClassMap(annotation.annotationType(), clazz);
+            }
+
+        }
+
+        if (isBean) {
+            isNeedInject(clazz);
+            isNeedSetValue(clazz);
+            filterMethod(clazz);
+            isAopClass(clazz);
+            if (clazz.isInterface()) {
+                return;
+            }
+            if (Modifier.isAbstract(clazz.getModifiers())) {
+                return;
+            }
+
+
+            beanStore.addBean(beanName, clazz);
+        }
+
+
+    }
+
+    private void isNeedInject(Class<?> clazz) {
+        Field[] fields = clazz.getDeclaredFields();
+        for (Field field : fields) {
+            if (Object.class.equals(field.getDeclaringClass())) {
+                continue;
+            }
+            Annotation[] annotations = field.getAnnotations();
+            for (Annotation annotation : annotations) {
+                if (annotation.annotationType().getName().startsWith("java")) {
+                    continue;
+                }
+                if (annotation.annotationType() == Inject.class) {
+                    beanStore.addPendingInject(clazz, field);
+                }
+            }
+        }
+    }
+
+    private void isNeedSetValue(Class<?> clazz) {
+        Field[] fields = clazz.getDeclaredFields();
+        for (Field field : fields) {
+            if (Object.class.equals(field.getDeclaringClass())) {
+                continue;
+            }
+            Annotation[] annotations = field.getAnnotations();
+            for (Annotation annotation : annotations) {
+                if (annotation.annotationType().getName().startsWith("java")) {
+                    continue;
+                }
+                if (annotation.annotationType() == Value.class) {
+                    beanStore.addPendingSetValue(clazz, field);
+                }
+            }
+        }
+    }
+
+
+    private void filterMethod(Class<?> clazz) {
+        if (ExecuteInterceptor.class.isAssignableFrom(clazz)) {
+            return;
+
+        }
+        //如果方法上有注解,需要先缓存起来,看是否有代理类
+        for (Method method : clazz.getMethods()) {
+            if (Object.class.equals(method.getDeclaringClass())) {
+                continue;
+            }
+            Annotation[] methodAnnotations = method.getAnnotations();
+            ClassMethodAnnotation mAnnotation = new ClassMethodAnnotation(clazz);
+            for (Annotation methodAnnotation : methodAnnotations) {
+                Class<? extends Annotation> annotationType = methodAnnotation.annotationType();
+                if (annotationType.getName().startsWith("java")) {
+                    continue;
+                }
+                if (annotationType == Bean.class) {
+                    beanStore.addBeanMethod(method);
+                    continue;
+                }
+                if (annotationType == Init.class) {
+                    beanStore.addPendingInit(clazz, method);
+                    continue;
+                }
+                if (annotationType == Destroy.class) {
+                    beanStore.addPendingDestroy(clazz, method);
+                    continue;
+                }
+
+                mAnnotation.add(method, annotationType);
+
+            }
+            if (!mAnnotation.isEmpty()) {
+                aopHandler.addClassAnnotationMethod(mAnnotation);
+            }
+
+        }
+    }
+
+    public void isAopClass(Class<?> clazz) {
+        Aop aop = clazz.getDeclaredAnnotation(Aop.class);
+        if (aop != null) {
+            aopHandler.addExecuteInterceptor(clazz);
+
+        }
     }
 
 

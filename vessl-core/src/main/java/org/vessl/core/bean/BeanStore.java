@@ -5,15 +5,9 @@ import com.google.common.collect.Multimap;
 import com.google.common.reflect.TypeToken;
 import net.sf.cglib.core.ReflectUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.vessl.core.aop.AopHandler;
-import org.vessl.core.aop.ClassMethodAnnotation;
-import org.vessl.core.aop.ExecuteInterceptor;
 import org.vessl.core.bean.config.ConfigManager;
 import org.vessl.core.bean.config.Value;
-import org.vessl.core.spi.Plugin;
-import org.vessl.core.spi.PluginHandler;
 
-import java.lang.annotation.Annotation;
 import java.lang.reflect.*;
 import java.util.*;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -61,7 +55,7 @@ public class BeanStore {
         ThreadPoolExecutor threadPoolExecutor = new ThreadPoolExecutor(Runtime.getRuntime().availableProcessors(), Runtime.getRuntime().availableProcessors() * 2,
                 60L, TimeUnit.MILLISECONDS,
                 new LinkedBlockingQueue<Runnable>(100));
-        addWithClassObject(ThreadPoolExecutor.class, threadPoolExecutor);
+        addBean(ThreadPoolExecutor.class, threadPoolExecutor);
     }
 
 
@@ -103,7 +97,7 @@ public class BeanStore {
     /**
      * 依赖注入
      */
-    static void inject() {
+    void inject() {
         for (Map.Entry<Class<?>, Field> entry : pendingInjectMap.entries()) {
             Class<?> aClass = entry.getKey();
             Field field = entry.getValue();
@@ -154,7 +148,7 @@ public class BeanStore {
     }
 
     //为@value注解的字段赋值
-    static void setConfigValue() {
+    void setConfigValue() {
         for (Map.Entry<Class<?>, Field> entry : pendingSetValueMap.entries()) {
             Class<?> aClass = entry.getKey();
             Field field = entry.getValue();
@@ -181,7 +175,7 @@ public class BeanStore {
 
     }
 
-    private static <T> Map<String, T> getFileValueWithMap(Class<?> clazz) {
+    private <T> Map<String, T> getFileValueWithMap(Class<?> clazz) {
         Map<String, T> map = new HashMap<>();
         List<PackageObject> rows = beanWithClassMap.get(clazz);
         for (PackageObject value : rows) {
@@ -192,7 +186,7 @@ public class BeanStore {
 
     }
 
-    private static <T> List<T> getFileValueWithList(Class<?> clazz) {
+    private <T> List<T> getFileValueWithList(Class<?> clazz) {
         List<T> list = new ArrayList<>();
         List<PackageObject> rows = beanWithClassMap.get(clazz);
         for (PackageObject value : rows) {
@@ -204,7 +198,7 @@ public class BeanStore {
     }
 
 
-    public static void setConfigValue(Field field, Object object) {
+    public void setConfigValue(Field field, Object object) {
         String value = field.getAnnotation(Value.class).value();
         if (StringUtils.isEmpty(value)) {
             return;
@@ -227,7 +221,7 @@ public class BeanStore {
 
     }
 
-    private static Object getValueFromConfig(String value) {
+    private Object getValueFromConfig(String value) {
         Object filedValue;
         if (!"${}".equals(value) && value.contains("${") && value.contains("}")) {
             String key = value.substring(value.indexOf("${") + 2, value.indexOf("}"));
@@ -257,7 +251,7 @@ public class BeanStore {
      * @throws InvocationTargetException
      * @throws IllegalAccessException
      */
-    static void invokeInit() throws InvocationTargetException, IllegalAccessException {
+    void invokeInit() throws InvocationTargetException, IllegalAccessException {
         for (Map.Entry<Class<?>, Method> entry : pendingInitMap.entries()) {
             Object targetClass = getBean(entry.getKey());
             boolean flag = entry.getValue().canAccess(targetClass);
@@ -267,7 +261,7 @@ public class BeanStore {
         }
     }
 
-    public static void invokeDestroy() throws InvocationTargetException, IllegalAccessException {
+    public void invokeDestroy() throws InvocationTargetException, IllegalAccessException {
         for (Map.Entry<Class<?>, Method> entry : pendingDestroyMap.entries()) {
             Object targetClass = getBean(entry.getKey());
             boolean flag = entry.getValue().canAccess(targetClass);
@@ -280,7 +274,7 @@ public class BeanStore {
     /**
      * 从@Bean注解的方法加载类
      */
-    static void scanWithBeanMethod() {
+    void scanWithBeanMethod() {
         Map<String, Object> objectMap = new HashMap<>();
         for (Method method : beanMethodList) {
             Bean annotation = method.getAnnotation(Bean.class);
@@ -318,145 +312,28 @@ public class BeanStore {
 
     }
 
-
-
-    public static void add(String beanName, Class<?> clazz) {
-        isNeedInject(clazz);
-        isNeedSetValue(clazz);
-        filterMethod(clazz);
-        AopHandler.isAopClass(clazz);
-        if (clazz.isInterface()) {
-            return;
-        }
-        if (Modifier.isAbstract(clazz.getModifiers())) {
-            return;
-        }
-
-        addBeanWithClass(beanName, clazz);
+    public void addBeanMethod(Method method) {
+        beanMethodList.add(method);
     }
 
-    private static void isNeedInject(Class<?> clazz) {
-        Field[] fields = clazz.getDeclaredFields();
-        for (Field field : fields) {
-            if (Object.class.equals(field.getDeclaringClass())) {
-                continue;
-            }
-            Annotation[] annotations = field.getAnnotations();
-            for (Annotation annotation : annotations) {
-                if (annotation.annotationType().getName().startsWith("java")) {
-                    continue;
-                }
-                if (annotation.annotationType() == Inject.class) {
-                    pendingInjectMap.put(clazz, field);
-                }
-            }
-        }
+    public void addPendingInit(Class<?> clazz, Method method) {
+        pendingInitMap.put(clazz, method);
     }
 
-    private static void isNeedSetValue(Class<?> clazz) {
-        Field[] fields = clazz.getDeclaredFields();
-        for (Field field : fields) {
-            if (Object.class.equals(field.getDeclaringClass())) {
-                continue;
-            }
-            Annotation[] annotations = field.getAnnotations();
-            for (Annotation annotation : annotations) {
-                if (annotation.annotationType().getName().startsWith("java")) {
-                    continue;
-                }
-                if (annotation.annotationType() == Value.class) {
-                    pendingSetValueMap.put(clazz, field);
-                }
-            }
-        }
+    public void addPendingDestroy(Class<?> clazz, Method method) {
+        pendingDestroyMap.put(clazz, method);
+    }
+
+    public void addPendingSetValue(Class<?> clazz, Field field) {
+        pendingSetValueMap.put(clazz, field);
+    }
+
+    public void addPendingInject(Class<?> clazz, Field field) {
+        pendingInjectMap.put(clazz, field);
     }
 
 
-
-    private static void filterMethod(Class<?> clazz) {
-        if (ExecuteInterceptor.class.isAssignableFrom(clazz)) {
-            return;
-
-        }
-        //如果方法上有注解,需要先缓存起来,看是否有代理类
-        for (Method method : clazz.getMethods()) {
-            if (Object.class.equals(method.getDeclaringClass())) {
-                continue;
-            }
-            Annotation[] methodAnnotations = method.getAnnotations();
-            ClassMethodAnnotation mAnnotation = new ClassMethodAnnotation(clazz);
-            for (Annotation methodAnnotation : methodAnnotations) {
-                Class<? extends Annotation> annotationType = methodAnnotation.annotationType();
-                if (annotationType.getName().startsWith("java")) {
-                    continue;
-                }
-                if (annotationType == Bean.class) {
-                    beanMethodList.add(method);
-                    continue;
-                }
-                if (annotationType == Init.class) {
-                    pendingInitMap.put(clazz, method);
-                    continue;
-                }
-                if (annotationType == Destroy.class) {
-                    pendingDestroyMap.put(clazz, method);
-                    continue;
-                }
-
-                mAnnotation.add(method, annotationType);
-
-            }
-            if (!mAnnotation.isEmpty()) {
-                AopHandler.addClassAnnotationMethod(mAnnotation);
-            }
-
-        }
-    }
-
-
-    public static void collectionClass(Class<?> clazz) {
-
-        if (clazz.isEnum()) {
-            return;
-        }
-        if (clazz.isAnnotation()) {
-            return;
-        }
-        if (clazz.getAnnotation(Plugin.class) != null) {
-            PluginHandler.addPlugin(clazz);
-            return;
-        }
-
-        Annotation[] annotations = clazz.getAnnotations();
-        boolean isBean = false;
-        String beanName = null;
-        for (Annotation annotation : annotations) {
-            if (annotation instanceof Bean bean) {
-                beanName = bean.value();
-                isBean = true;
-
-            } else {
-                Bean beanAnnotation = annotation.annotationType().getAnnotation(Bean.class);
-                if (beanAnnotation != null) {
-                    beanName = beanAnnotation.value();
-                    isBean = true;
-                }
-            }
-            if (!annotation.annotationType().getCanonicalName().startsWith("java.")) {
-                PluginHandler.addAnnotationClassMap(annotation.annotationType(), clazz);
-            }
-
-        }
-
-        if (isBean) {
-
-            add(beanName, clazz);
-        }
-
-
-    }
-
-    static void addBeanWithClass(String beanName, Class<?> clazz) {
+    public void addBean(String beanName, Class<?> clazz) {
 
         if (StringUtils.isEmpty(beanName)) {
             beanName = clazz.getName();
@@ -468,11 +345,10 @@ public class BeanStore {
         } catch (InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
             //TODO
         }
-
-
     }
 
-    public static void addWithClassObject(Class<?> clazz, Object obj) {
+
+    public static void addBean(Class<?> clazz, Object obj) {
         String beanName = clazz.getName();
         addBean(clazz, obj, beanName);
 
@@ -483,8 +359,7 @@ public class BeanStore {
         beanWithNameMap.put(beanName, packageObject);
         beanWithClassMap.put(clazz, packageObject);
         List<Class<?>> superClass = getSuperClassAndInterface(clazz);
-        //superClass.addAll(getSuperInterface(clazz));
-        if(clazz.equals(ThreadPoolExecutor.class)){
+        if (clazz.equals(ThreadPoolExecutor.class)) {
             for (Class<?> aClass : superClass) {
                 System.out.println(aClass.getName());
             }
@@ -504,7 +379,6 @@ public class BeanStore {
         beanWithNameMap.put(beanName, packageObject);
         beanWithClassMap.put(clazz, packageObject);
         List<Class<?>> superClass = getSuperClassAndInterface(clazz);
-        //superClass.addAll(getSuperInterface(clazz));
         for (Class<?> aClass : superClass) {
             beanWithClassMap.put(aClass, packageObject);
         }
@@ -519,7 +393,7 @@ public class BeanStore {
     private static List<Class<?>> getSuperClassAndInterface(Class<?> clazz) {
         List<Class<?>> clazzs = new ArrayList<>();
         Class<?> suCl = clazz.getSuperclass();
-        if(suCl != null && suCl != Object.class) {
+        if (suCl != null && suCl != Object.class) {
             clazzs.add(suCl);
         }
         Class<?>[] interfaces = clazz.getInterfaces();
@@ -532,20 +406,5 @@ public class BeanStore {
         return clazzs;
     }
 
-    /**
-     * 获取这个类的所有父接口
-     *
-     * @param clazz
-     * @return
-     */
-    private static List<Class<?>> getSuperInterface(Class<?> clazz) {
-        List<Class<?>> clazzs = new ArrayList<>();
-        Class<?>[] suCl = clazz.getInterfaces();
-        for (Class<?> aClass : suCl) {
-            List<Class<?>> superClass = getSuperClassAndInterface(aClass);
-            clazzs.addAll(superClass);
-        }
-        return clazzs;
-    }
 
 }

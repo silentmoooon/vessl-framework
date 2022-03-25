@@ -1,7 +1,6 @@
 package org.vessl.core.spi;
 
-import org.vessl.core.bean.BeanStore;
-import org.vessl.core.bean.Order;
+import org.vessl.core.bean.ClassScanner;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -12,9 +11,12 @@ import java.util.List;
 /**
  * 通过vessl.handles来扫描插件
  */
-@Plugin
-@Order(Integer.MIN_VALUE)
+
 public class BasePluginScanPlugin implements FileScanPlugin {
+    private final ClassScanner classScanner;
+    public BasePluginScanPlugin(ClassScanner classScanner){
+        this.classScanner=classScanner;
+    }
     @Override
     public String getPath() {
         return "classpath*:META-INF/vessl.handles";
@@ -29,7 +31,7 @@ public class BasePluginScanPlugin implements FileScanPlugin {
                 while ((s = br.readLine()) != null) {
                     try {
                         Class<?> aClass = Thread.currentThread().getContextClassLoader().loadClass(s);
-                        BeanStore.collectionClass(aClass);
+                        classScanner.collectionClass(aClass);
 
                     } catch (ClassNotFoundException e) {
                         e.printStackTrace();

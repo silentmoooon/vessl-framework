@@ -1,6 +1,7 @@
 package org.vessl.sql.plugin;
 
-import org.vessl.core.bean.BeanOrder;
+
+import org.vessl.base.bean.BeanOrder;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -6,45 +6,59 @@ import org.vessl.core.bean.BeanOrder;
 import org.vessl.core.bean.BeanStore;
 import org.vessl.core.bean.config.FileScanner;
 import org.vessl.core.bean.config.Value;
-import org.vessl.core.bean.config.YamlScanPlugin;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class PluginHandler {
 
-    private static final FileScanner fileScanner = new FileScanner();
+    private BeanStore beanStore;
+
+    private final FileScanner fileScanner = new FileScanner();
     /**
      * 缓存扫描到的类(plugin类除外)
      */
-    private static ArrayListMultimap<Class<? extends Annotation>, Class<?>> annotationClassMap = ArrayListMultimap.create();
+    private ArrayListMultimap<Class<? extends Annotation>, Class<?>> annotationClassMap = ArrayListMultimap.create();
 
     /**
      * 缓存类扫描插件类
      */
-    private static List<Class<?>> classScanHandleList = new ArrayList<>();
+    private List<Class<?>> classScanHandleList = new ArrayList<>();
 
     /**
      * 缓存类扫描插件实例
      */
-    private static Map<Class<?>, ClassScanPlugin> classScanHandleObjectMap = new HashMap<>();
+    private Map<Class<?>, ClassScanPlugin> classScanHandleObjectMap = new HashMap<>();
 
     /**
      * 缓存文件扫描插件类
      */
-    private static List<Class<?>> fileScanHandlerList = new ArrayList<>();
+    private List<Class<?>> fileScanHandlerList = new ArrayList<>();
 
     /**
      * 基本插件
      */
-    private static List<Class<?>> baseFileScanHandlerList = Arrays.asList(BasePluginScanPlugin.class, YamlScanPlugin.class);
+    private List<FileScanPlugin> baseFileScanPluginList = new ArrayList<>();
 
-    public static void addAnnotationClassMap(Class<? extends Annotation> annotationClass, Class<?> clazz){
+
+    public PluginHandler(BeanStore beanStore) {
+        this.beanStore = beanStore;
+    }
+
+    public void addAnnotationClassMap(Class<? extends Annotation> annotationClass, Class<?> clazz) {
         annotationClassMap.put(annotationClass, clazz);
     }
-    public static void addPlugin(Class<?> clazz) {
+
+    public void addBasePlugin(FileScanPlugin fileScanPlugin) {
+        baseFileScanPluginList.add(fileScanPlugin);
+    }
+
+    public void addPlugin(Class<?> clazz) {
 
         if (ClassScanPlugin.class.isAssignableFrom(clazz)) {
             if (!classScanHandleList.contains(clazz)) {
@@ -61,17 +75,13 @@ public class PluginHandler {
     /**
      * 基本文件扫描,加载配置文件和SPI声明的handler类
      */
-    public static void baseFileScan() {
+    public void baseFileScan() {
 
-        for (Class<?> fileScan : baseFileScanHandlerList) {
-            try {
+        for (FileScanPlugin fileScan : baseFileScanPluginList) {
 
-                FileScanPlugin scanHandler = (FileScanPlugin) fileScan.getDeclaredConstructor().newInstance();
-                String path = scanHandler.getPath();
-                if (StringUtils.isNotEmpty(path)) {
-                    fileScanner.scan(scanHandler, path);
-                }
-            } catch (InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchMethodException ignored) {
+            String path = fileScan.getPath();
+            if (StringUtils.isNotEmpty(path)) {
+                fileScanner.scan(fileScan, path);
             }
         }
 
@@ -80,7 +90,7 @@ public class PluginHandler {
     /**
      * 类扫描
      */
-    public static void classScanning() {
+    public void classScanning() {
         classScanHandleList.sort(BeanOrder::order);
         for (Class<?> clazz : classScanHandleList) {
             try {
@@ -89,7 +99,7 @@ public class PluginHandler {
                 Field[] declaredFields = clazz.getDeclaredFields();
                 for (Field declaredField : declaredFields) {
                     if (declaredField.getAnnotation(Value.class) != null) {
-                        BeanStore.setConfigValue(declaredField, o);
+                        beanStore.setConfigValue(declaredField, o);
                     }
                 }
                 classScanHandleObjectMap.put(clazz, o);
@@ -102,7 +112,7 @@ public class PluginHandler {
         }
     }
 
-    public static void classScanEnd() {
+    public void classScanEnd() {
 
 
         for (Class<?> clazz : classScanHandleList) {
@@ -123,7 +133,7 @@ public class PluginHandler {
         annotationClassMap.clear();
     }
 
-    public static void classDestroyHandle() {
+    public void classDestroyHandle() {
         for (Class<?> clazz : classScanHandleList) {
             ClassScanPlugin o = classScanHandleObjectMap.get(clazz);
             o.handleDestroy();
@@ -133,7 +143,7 @@ public class PluginHandler {
         classScanHandleObjectMap.clear();
     }
 
-    public static void fileScan() {
+    public void fileScan() {
         fileScanHandlerList.sort(BeanOrder::order);
         for (Class<?> fileScan : fileScanHandlerList) {
             try {
@@ -141,7 +151,7 @@ public class PluginHandler {
                 Field[] declaredFields = fileScan.getDeclaredFields();
                 for (Field declaredField : declaredFields) {
                     if (declaredField.getAnnotation(Value.class) != null) {
-                        BeanStore.setConfigValue(declaredField, scanHandler);
+                        beanStore.setConfigValue(declaredField, scanHandler);
                     }
                 }
 

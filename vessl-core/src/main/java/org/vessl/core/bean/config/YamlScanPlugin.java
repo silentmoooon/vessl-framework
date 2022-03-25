@@ -1,15 +1,11 @@
 package org.vessl.core.bean.config;
 
-import org.vessl.core.bean.Order;
 import org.vessl.core.spi.FileScanPlugin;
-import org.vessl.core.spi.Plugin;
 import org.yaml.snakeyaml.Yaml;
 
 import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
-@Plugin
-@Order(Integer.MIN_VALUE)
 public class YamlScanPlugin implements FileScanPlugin {
     @Override
     public String getPath() {

@@ -6,7 +6,7 @@ import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import net.sf.cglib.proxy.Enhancer;
 import org.apache.commons.lang3.StringUtils;
-import org.vessl.core.bean.BeanStore;
+import org.vessl.base.bean.BeanStore;
 import org.vessl.sql.annotation.Sql;
 import org.vessl.sql.bean.MethodDesc;
 import org.vessl.sql.bean.SqlClassBean;
