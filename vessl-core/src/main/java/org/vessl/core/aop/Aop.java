@@ -1,4 +1,4 @@
-package org.vessl.sql.annotation;
+package org.vessl.core.aop;
 
 import org.vessl.core.bean.Bean;
 
@@ -6,7 +6,7 @@ import java.lang.annotation.*;
 
 @Target({ElementType.TYPE})
 @Retention(RetentionPolicy.RUNTIME)
-@Documented
 @Bean
-public @interface Mapper {
+@Documented
+public @interface Aop {
 }

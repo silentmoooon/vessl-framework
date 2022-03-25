@@ -1,22 +1,22 @@
 package org.vessl.sql.plugin;
 
-import org.vessl.bean.ClassScanHandler;
+import org.vessl.core.spi.ClassScanPlugin;
+import org.vessl.core.spi.Plugin;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationTargetException;
-import java.util.Collection;
 import java.util.List;
-
-public class MapperPluginScan implements ClassScanHandler {
+@Plugin
+public class MapperPluginScan implements ClassScanPlugin {
     @Override
     public Class<? extends Annotation>[] targetAnnotation() {
-        return new Class[]{Plugin.class};
+        return new Class[]{MapperPlugin.class};
     }
 
     @Override
     public void handleBefore(List<Class<?>> classes)  {
         for (Class<?> aClass : classes) {
-            Plugin annotation = aClass.getAnnotation(Plugin.class);
+            MapperPlugin annotation = aClass.getAnnotation(MapperPlugin.class);
             Object o = null;
             try {
                 o = aClass.getDeclaredConstructor().newInstance();

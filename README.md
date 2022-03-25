@@ -1,4 +1,4 @@
-# vessl is a simple framework like spring-framework.
+# vessl-framework is a simple framework like spring-framework.
 
 It includes the following functions
 - web (like spring-web)

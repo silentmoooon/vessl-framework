@@ -1,12 +1,10 @@
 package org.vessl.sql.plugin;
 
-import org.vessl.bean.BeanOrder;
+import org.vessl.core.bean.BeanOrder;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.TreeSet;
-import java.util.stream.Collectors;
 
 public class PluginManager {
 

@@ -1,15 +1,16 @@
 package org.vessl.web.handle;
 
 
-import org.vessl.bean.ClassScanHandler;
-import org.vessl.bean.config.Value;
+import org.vessl.core.spi.ClassScanPlugin;
+import org.vessl.core.bean.config.Value;
+import org.vessl.core.spi.Plugin;
 import org.vessl.web.annotation.*;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.util.Map;
-
-public class WebClassHandle implements ClassScanHandler {
+@Plugin
+public class WebClassHandle implements ClassScanPlugin {
 
     @Value("${web.port}")
     private int port;

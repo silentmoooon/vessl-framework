@@ -1,7 +1,6 @@
 package org.vessl.sql.handle;
 
 import lombok.AllArgsConstructor;
-import org.vessl.sql.plugin.Plugin;
 import org.vessl.sql.plugin.PluginInterceptor;
 
 import java.lang.reflect.Method;

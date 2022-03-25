@@ -1,7 +1,7 @@
 package org.vessl.web.annotation;
 
 
-import org.vessl.bean.Bean;
+import org.vessl.core.bean.Bean;
 
 import java.lang.annotation.*;
 

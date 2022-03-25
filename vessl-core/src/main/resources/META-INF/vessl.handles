@@ -1,0 +1,2 @@
+org.vessl.core.bean.config.YamlScanPlugin
+org.vessl.core.async.AsyncExecuteInterceptor
