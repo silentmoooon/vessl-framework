@@ -1,4 +1,4 @@
-package org.vessl.core.bean;
+package org.vessl.core.aop;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.LinkedListMultimap;
@@ -6,9 +6,7 @@ import net.sf.cglib.core.ReflectUtils;
 import net.sf.cglib.core.Signature;
 import net.sf.cglib.proxy.MethodInterceptor;
 import net.sf.cglib.proxy.MethodProxy;
-import org.vessl.core.aop.ExecuteInterceptor;
-import org.vessl.core.aop.ClassMethodAnnotation;
-import org.vessl.core.aop.MethodExecutor;
+import org.vessl.core.bean.BeanOrder;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationHandler;
@@ -16,23 +14,24 @@ import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * @author xiecan
+ */
 public class BeanClassProxy implements MethodInterceptor, InvocationHandler {
 
 
-    private Object target;
-    private ClassMethodAnnotation classMethodAnnotation;
-    private HashMultimap<Class<? extends Annotation>, ExecuteInterceptor> executeHandlerHashMultimap;
+    private final Object target;
+    private final HashMultimap<Class<? extends Annotation>, ExecuteInterceptor> executeHandlerHashMultimap;
     private final LinkedListMultimap<String, ExecuteInterceptor> methodProxyChain = LinkedListMultimap.create();
 
 
     public BeanClassProxy(HashMultimap<Class<? extends Annotation>, ExecuteInterceptor> executeHandlerHashMultimap, Object target, ClassMethodAnnotation classMethodAnnotation) {
         this.executeHandlerHashMultimap = executeHandlerHashMultimap;
         this.target = target;
-        this.classMethodAnnotation = classMethodAnnotation;
-        assignProxy();
+        assignProxy(classMethodAnnotation);
     }
 
-    private void assignProxy() {
+    private void assignProxy(ClassMethodAnnotation classMethodAnnotation) {
 
         for (Method method : classMethodAnnotation.methods()) {
             String signature = ReflectUtils.getSignature(method).toString();
@@ -43,7 +42,7 @@ public class BeanClassProxy implements MethodInterceptor, InvocationHandler {
             methodProxyChain.get(signature).sort(BeanOrder::order);
         }
 
-
+        classMethodAnnotation.clear();
     }
 
 
@@ -74,9 +73,9 @@ public class BeanClassProxy implements MethodInterceptor, InvocationHandler {
             ExecuteInterceptor executeInterceptor = executeInterceptors.get(executeIndex);
 
             executeInterceptor.beforeHandle(signature, objects);
-            Object handle = null;
+            Object handle;
             try {
-                handle = executeInterceptor.handle(new MethodExecutor(executeInterceptors, executeIndex++, signature, method, target, objects));
+                handle = executeInterceptor.handle(new MethodExecutor(executeInterceptors, ++executeIndex, signature, method, target, objects));
                 executeInterceptor.afterHandle(signature);
                 executeInterceptor.afterReturn(signature, objects, handle);
                 return handle;

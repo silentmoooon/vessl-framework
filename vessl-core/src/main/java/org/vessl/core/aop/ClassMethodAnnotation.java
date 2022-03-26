@@ -8,9 +8,9 @@ import java.util.List;
 import java.util.Set;
 
 public class ClassMethodAnnotation {
-    private Class<?> clazz;
-    private ArrayListMultimap<Method ,Class<? extends Annotation> > methodMap = ArrayListMultimap.create();
-    private ArrayListMultimap<Class<? extends Annotation>,Method > annotationMap = ArrayListMultimap.create();
+    private final Class<?> clazz;
+    private final ArrayListMultimap<Method ,Class<? extends Annotation> > methodMap = ArrayListMultimap.create();
+    private final ArrayListMultimap<Class<? extends Annotation>,Method > annotationMap = ArrayListMultimap.create();
 
     public ClassMethodAnnotation(Class<?> clazz) {
         this.clazz=clazz;

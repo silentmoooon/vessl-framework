@@ -105,14 +105,8 @@ public class FileScanner {
     public void scanFile(String path, Pattern regexPath, boolean isClasspath, boolean mapperScanDeep) {
 
         if (isClasspath) {
-            /*//如果不在jar包中运行,则也需要扫描文件夹(则classpath路径),否则全在jar包中扫描
-            if (!isRunInJar()) {
-                findLocalFile(path, regexPath);
-                if (!mapperScanDeep) {
-                    return;
-                }
-            }*/
-            String startPath = "";
+
+            String startPath;
             if (path.contains("*")) {
                 startPath = path.substring(0, path.lastIndexOf("/", path.indexOf("*")));
             } else {
@@ -146,7 +140,7 @@ public class FileScanner {
     }
 
     private void findLocalFile(String path, Pattern regexPath) {
-        String scanPath = "";
+        String scanPath;
 
         if (regexPath != null) {
             //如果是通配路径,获取开始扫描的路径
@@ -240,7 +234,6 @@ public class FileScanner {
     /**
      * jar包查找
      *
-     * @param packName
      */
     private void findFileJar(URL url, final String packName, String absPath, Pattern regPath) {
         String pathName = packName.replace(".", "/");

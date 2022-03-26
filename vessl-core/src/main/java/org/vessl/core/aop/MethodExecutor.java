@@ -23,7 +23,7 @@ public class MethodExecutor {
         ExecuteInterceptor executeInterceptor = executeInterceptors.get(executeIndex);
         executeIndex++;
         executeInterceptor.beforeHandle(signature, args);
-        Object handle = null;
+        Object handle;
         try {
             handle = executeInterceptor.handle(this);
             executeInterceptor.afterHandle(signature);

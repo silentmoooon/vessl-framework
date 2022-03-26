@@ -1,7 +1,9 @@
 package org.vessl.core.bean;
 
 import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Multimap;
+import com.google.common.collect.Table;
 import com.google.common.reflect.TypeToken;
 import net.sf.cglib.core.ReflectUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -22,10 +24,13 @@ public class BeanStore {
      */
     private static Map<String, PackageObject> beanWithNameMap = new HashMap<>();
     /**
-     * 按类型保存 r父类,c类本身 v对象
+     * 按类型保存 d类本身 v对象
      */
-    private static ArrayListMultimap<Class<?>, PackageObject> beanWithClassMap = ArrayListMultimap.create();
-
+    private static Map<Class<?>, PackageObject> beanWithClassMap = new HashMap<>();
+    /**
+     * 按类型保存 k父类 v对象
+     */
+    private static Table<Class<?>,Class<?>, PackageObject> beanWithParentClassMap = HashBasedTable.create();
 
     /**
      * 被@Bean注解的方法
@@ -61,9 +66,9 @@ public class BeanStore {
 
     public static <T> T getBean(Class<T> tClass) {
 
-        List<PackageObject> packageObjects = beanWithClassMap.get(tClass);
-        if (packageObjects.size() > 0) {
-            return (T) packageObjects.get(packageObjects.size() - 1).getObject();
+        PackageObject packageObject = beanWithClassMap.get(tClass);
+        if (packageObject!=null) {
+            return (T) packageObject.getObject();
         }
 
         return null;
@@ -71,11 +76,10 @@ public class BeanStore {
 
     static <T> T getOriginBean(Class<T> tClass) {
 
-        List<PackageObject> packageObjects = beanWithClassMap.get(tClass);
-        if (packageObjects.size() == 0) {
+        PackageObject packageObject = beanWithClassMap.get(tClass);
+        if (packageObject==null) {
             return null;
         }
-        PackageObject packageObject = packageObjects.get(packageObjects.size() - 1);
         if (packageObject.isProxy) {
             return (T) packageObject.getTarget();
         }
@@ -177,8 +181,9 @@ public class BeanStore {
 
     private <T> Map<String, T> getFileValueWithMap(Class<?> clazz) {
         Map<String, T> map = new HashMap<>();
-        List<PackageObject> rows = beanWithClassMap.get(clazz);
-        for (PackageObject value : rows) {
+        Map<Class<?>, PackageObject> rows = beanWithParentClassMap.row(clazz);
+
+        for (PackageObject value : rows.values()) {
             map.put(value.getBeanName(), (T) value.getObject());
         }
 
@@ -188,8 +193,8 @@ public class BeanStore {
 
     private <T> List<T> getFileValueWithList(Class<?> clazz) {
         List<T> list = new ArrayList<>();
-        List<PackageObject> rows = beanWithClassMap.get(clazz);
-        for (PackageObject value : rows) {
+        Map<Class<?>, PackageObject> rows = beanWithParentClassMap.row(clazz);
+        for (PackageObject value : rows.values()) {
             list.add((T) value.getObject());
         }
 
@@ -365,23 +370,25 @@ public class BeanStore {
             }
         }
         for (Class<?> aClass : superClass) {
-            beanWithClassMap.put(aClass, packageObject);
+            beanWithParentClassMap.put(aClass,clazz, packageObject);
         }
     }
 
-    public static void addProxyBean(Class<?> clazz, Object obj, String beanName) {
-        PackageObject object = beanWithNameMap.get(beanName);
-        PackageObject packageObject = new PackageObject(beanName, obj);
+    public static void addProxyBean(Class<?> clazz, Object obj) {
+        PackageObject object = beanWithClassMap.get(clazz);
+
         if (object != null) {
+            PackageObject packageObject = new PackageObject(object.getBeanName(), obj);
             packageObject.setProxy(true);
             packageObject.setTarget(object.getObject());
+            beanWithNameMap.put(object.getBeanName(), packageObject);
+            beanWithClassMap.put(clazz, packageObject);
+            List<Class<?>> superClass = getSuperClassAndInterface(clazz);
+            for (Class<?> aClass : superClass) {
+                beanWithParentClassMap.put(aClass,clazz, packageObject);
+            }
         }
-        beanWithNameMap.put(beanName, packageObject);
-        beanWithClassMap.put(clazz, packageObject);
-        List<Class<?>> superClass = getSuperClassAndInterface(clazz);
-        for (Class<?> aClass : superClass) {
-            beanWithClassMap.put(aClass, packageObject);
-        }
+
     }
 
     /**

@@ -2,31 +2,32 @@ package org.vessl.core.aop;
 
 import com.google.common.collect.HashMultimap;
 import net.sf.cglib.proxy.Enhancer;
-import org.vessl.core.bean.BeanClassProxy;
 import org.vessl.core.bean.BeanStore;
-
 import java.lang.annotation.Annotation;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * @author xiecan
+ */
 public class AopHandler {
 
 
     /**
      * 被注解的方法,可能会有AOP类拦截
      */
-    private  List<ClassMethodAnnotation> annotationMethodList = new ArrayList<>();
+    private final List<ClassMethodAnnotation> annotationMethodList = new ArrayList<>();
 
     /**
      * 缓存aop拦截器类
      */
-    private  List<Class<?>> executeInterceptorList = new ArrayList<>();
+    private final List<Class<?>> executeInterceptorList = new ArrayList<>();
 
     public void addExecuteInterceptor(Class<?> clazz) {
         if (!executeInterceptorList.contains(clazz)) {
             executeInterceptorList.add(clazz);
-        };
+        }
     }
 
     public  void addClassAnnotationMethod(ClassMethodAnnotation classMethodAnnotation){
@@ -42,6 +43,9 @@ public class AopHandler {
         HashMultimap<Class<? extends Annotation>, ExecuteInterceptor> pendingAnnotationMap = HashMultimap.create();
         for (Class<?> clazz : executeInterceptorList) {
             ExecuteInterceptor executeInterceptor = (ExecuteInterceptor) BeanStore.getBean(clazz);
+            if (executeInterceptor == null) {
+                continue;
+            }
             Class<? extends Annotation>[] annotationClasses = executeInterceptor.targetAnnotation();
             for (Class<? extends Annotation> aClass : annotationClasses) {
                 pendingAnnotationMap.put(aClass, executeInterceptor);
@@ -72,7 +76,7 @@ public class AopHandler {
             enhancer.setSuperclass(classMethodAnnotation.getClazz());
             enhancer.setCallback(beanClassProxy);
             Object o = enhancer.create();
-            BeanStore.addProxyBean(classMethodAnnotation.getClazz(), o, classMethodAnnotation.getClazz().getName());
+            BeanStore.addProxyBean(classMethodAnnotation.getClazz(), o);
         }
 
         annotationMethodList.clear();

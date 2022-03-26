@@ -4,7 +4,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class ConfigManager {
-    private static Map<String, Object> configMap = new HashMap<>();
+    private static final Map<String, Object> configMap = new HashMap<>();
 
     public static void put(String key,Object value) {
         configMap.put(key, value);
