@@ -1,11 +1,8 @@
 package org.vessl.sql.plugin;
 
-import org.vessl.sql.bean.SqlMethodBean;
-import org.vessl.sql.handle.MapperMethodInvoker;
-
-import java.lang.reflect.Method;
+import org.vessl.sql.handle.MapperInvoker;
 
 public interface PluginInterceptor {
 
-    Object intercept(MapperMethodInvoker invoker) throws Throwable;
+    Object intercept(MapperInvoker invoker) throws Exception;
 }

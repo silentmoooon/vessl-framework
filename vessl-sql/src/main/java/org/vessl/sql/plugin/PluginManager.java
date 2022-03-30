@@ -1,31 +1,43 @@
 package org.vessl.sql.plugin;
 
 
-import org.vessl.base.bean.BeanOrder;
+import org.vessl.core.bean.BeanOrder;
 
-import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.TreeSet;
 
 public class PluginManager {
 
     private static TreeSet<PluginInterceptor> executePlugins = new TreeSet<>(BeanOrder::order);
+    private static TreeSet<PluginInterceptor> parameterPlugins = new TreeSet<>(BeanOrder::order);
     private static TreeSet<PluginInterceptor> resultPlugins = new TreeSet<>(BeanOrder::order);
 
    static void addPlugin(PluginType pluginType, PluginInterceptor plugin) {
-        if (pluginType.equals(PluginType.EXECUTE)) {
-            executePlugins.add(plugin);
-        }else{
-            resultPlugins.add(plugin);
-        }
+       switch (pluginType) {
+           case EXECUTE  -> executePlugins.add(plugin);
+           case PARAMETER -> parameterPlugins.add(plugin);
+           case RESULT -> resultPlugins.add(plugin);
+       }
+
     }
 
     public static List<PluginInterceptor> getPlugins(PluginType pluginType){
-        if (pluginType.equals(PluginType.EXECUTE)) {
-            return new ArrayList<>(executePlugins);
-        }else{
-            return new ArrayList<>(resultPlugins);
+        switch (pluginType) {
+            case EXECUTE -> {
+                return new LinkedList<>(executePlugins);
+            }
+            case PARAMETER -> {
+                return new LinkedList<>(parameterPlugins);
+            }
+            case RESULT -> {
+                return new LinkedList<>(resultPlugins);
+            }
         }
+        return new LinkedList<>();
     }
 
+    public static int size() {
+        return executePlugins.size() + parameterPlugins.size() + resultPlugins.size();
+    }
 }

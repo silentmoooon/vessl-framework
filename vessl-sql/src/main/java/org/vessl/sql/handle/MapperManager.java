@@ -6,38 +6,70 @@ import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import net.sf.cglib.proxy.Enhancer;
 import org.apache.commons.lang3.StringUtils;
-import org.vessl.base.bean.BeanStore;
+import org.vessl.core.bean.BeanStore;
 import org.vessl.sql.annotation.Sql;
-import org.vessl.sql.bean.MethodDesc;
-import org.vessl.sql.bean.SqlClassBean;
-import org.vessl.sql.bean.SqlMethodBean;
+import org.vessl.sql.bean.*;
 import org.vessl.sql.constant.MethodReturnMode;
 
 import javax.sql.DataSource;
 import java.lang.reflect.Method;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class MapperManager {
 
-    private static DataSource dataSource;
+    private static DataSource singleDataSource;
+    private static boolean isSingleDataSource = true;
+    private static Map<String, DataSource> dataSourceMap = new HashMap<>();
     /**
      * 根据mapper类缓存的mapper动态代理对象
      */
-    private static Map<Class<?>, Object> mapperProxyMap = new HashMap<>();
+    private static final Map<Class<?>, Object> mapperProxyMap = new HashMap<>();
+
+    private static final Map<Class<?>, String> mapperDatasourceMap = new HashMap<>();
 
     /**
      * 缓存类中方法定义
      */
-    private static Multimap<Class<?>, MethodDesc> classMethodMap = ArrayListMultimap.create();
+    private static final Multimap<Class<?>, MethodDesc> classMethodMap = ArrayListMultimap.create();
+
+    public static boolean isSingle() {
+        return isSingleDataSource;
+    }
 
     static DataSource getDataSource() {
+        if (singleDataSource == null) {
+            throw new RuntimeException("datasource is null");
+        }
+        return singleDataSource;
+    }
+
+    static DataSource getDataSource(Class<?> clazz) {
+        if(isSingleDataSource){
+            return singleDataSource;
+        }
+        DataSource dataSource = dataSourceMap.get(mapperDatasourceMap.get(clazz));
+        if (dataSource == null) {
+            throw new RuntimeException("datasource is null");
+        }
+        return dataSource;
+    }
+
+    static DataSource getDataSource(String datasourceName) {
+        if(isSingleDataSource){
+            return singleDataSource;
+        }
+        DataSource dataSource = dataSourceMap.get(datasourceName);
+        if (dataSource == null) {
+            throw new RuntimeException("datasource is null");
+        }
         return dataSource;
     }
 
 
-     static <T> void addMapper(Class<T> type) {
+    static <T> void addMapper(Class<T> type) {
 
         Method[] methods = type.getMethods();
         for (Method method : methods) {
@@ -47,38 +79,65 @@ public class MapperManager {
                 SqlMethodBean methodBean = new SqlMethodBean();
                 methodBean.setName(method.getName());
                 methodBean.setType(sqlAnnotation.type().toString());
+                methodBean.setSqlType(sqlAnnotation.type());
                 methodBean.setSql(sqlAnnotation.value());
                 MethodReturnMode methodReturnMode = getMethodReturnMode(method);
                 methodBean.setReturnMode(methodReturnMode);
-                classMethodMap.put(type, new MethodDesc(method,methodBean));
+                methodBean.setReturnType(method.getGenericReturnType());
+                classMethodMap.put(type, new MethodDesc(method, methodBean));
 
             }
         }
 
     }
 
-
-    static void initMapperProxyAndDatasource(HikariConfig config){
-        dataSource = new HikariDataSource(config);
+    static void initMapperBean() {
         for (Class<?> aClass : classMethodMap.keySet()) {
-            MapperProxy mapperProxy = new MapperProxy(aClass,classMethodMap.get(aClass).stream().toList());
-           /* if(aClass.isInterface()) {
-                Object o = Proxy.newProxyInstance(aClass.getClassLoader(), new Class[]{aClass}, mapperProxy);
-                mapperProxyMap.put(aClass, o);
-            }else{
-*/
-                Enhancer enhancer = new Enhancer();
-                enhancer.setSuperclass(aClass);
-                enhancer.setCallback(mapperProxy);
-                Object o = enhancer.create();
-                mapperProxyMap.put(aClass, o);
-           // }
+            MapperProxy mapperProxy = new MapperProxy(aClass, classMethodMap.get(aClass).stream().toList());
+
+            Enhancer enhancer = new Enhancer();
+            enhancer.setSuperclass(aClass);
+            enhancer.setCallback(mapperProxy);
+            Object o = enhancer.create();
+            mapperProxyMap.put(aClass, o);
+
         }
+        mapperProxyMap.forEach(BeanStore::addBean);
         classMethodMap.clear();
-        mapperProxyMap.forEach(BeanStore::addWithClassObject);
+
     }
 
-     static <T> T getMapper(Class<T> type) {
+    static void initDatasource(HikariConfig config) {
+        singleDataSource = new HikariDataSource(config);
+
+    }
+
+    static void initDatasource(List<BaseSqlConfig> sqlConfigs) {
+        isSingleDataSource = false;
+        for (BaseSqlConfig sqlConfig : sqlConfigs) {
+            HikariConfig hikariConfig = new HikariConfig();
+            hikariConfig.setJdbcUrl(sqlConfig.getJdbcUrl());
+            hikariConfig.setUsername(sqlConfig.getUsername());
+            hikariConfig.setPassword(sqlConfig.getPassword());
+            hikariConfig.addDataSourceProperty("cachePrepStmts", sqlConfig.getCachePrepStmts());
+            hikariConfig.addDataSourceProperty("prepStmtCacheSize", sqlConfig.getPrepStmtCacheSize());
+            hikariConfig.addDataSourceProperty("prepStmtCacheSqlLimit", sqlConfig.getPrepStmtCacheSqlLimit());
+            DataSource dataSource = new HikariDataSource(hikariConfig);
+            dataSourceMap.put(sqlConfig.getDatasourceName(), dataSource);
+
+            for (Class<?> aClass : mapperProxyMap.keySet()) {
+                if (aClass.getPackageName().startsWith(sqlConfig.getBasePackage())) {
+
+                    mapperDatasourceMap.put(aClass, sqlConfig.getDatasourceName());
+                }
+
+            }
+
+        }
+
+    }
+
+    static <T> T getMapper(Class<T> type) {
         return (T) mapperProxyMap.get(type);
     }
 
@@ -86,7 +145,7 @@ public class MapperManager {
         return mapperProxyMap;
     }
 
-     static void addMapper(SqlClassBean bean) {
+    static void addMapper(SqlClassBean bean) {
         Class<?> clazz = null;
         try {
             clazz = Thread.currentThread().getContextClassLoader().loadClass(bean.getName());
@@ -104,7 +163,8 @@ public class MapperManager {
                 SqlMethodBean methodBean = methodBeanMap.get(method.getName());
                 MethodReturnMode methodReturnMode = getMethodReturnMode(method);
                 methodBean.setReturnMode(methodReturnMode);
-                classMethodMap.put(clazz, new MethodDesc(method,methodBean));
+                methodBean.setReturnType(method.getGenericReturnType());
+                classMethodMap.put(clazz, new MethodDesc(method, methodBean));
             }
         }
 
@@ -121,5 +181,8 @@ public class MapperManager {
         return MethodReturnMode.SINGLE;
     }
 
+    public static void main(String[] args) {
+        System.out.println(MapperManager.class.getPackageName());
+    }
 
 }

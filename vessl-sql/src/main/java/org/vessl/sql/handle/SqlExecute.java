@@ -7,6 +7,9 @@ import org.vessl.sql.annotation.Name;
 import org.vessl.sql.bean.SqlMethodBean;
 import org.vessl.sql.constant.MethodReturnMode;
 import org.vessl.sql.constant.SqlType;
+import org.vessl.sql.plugin.PluginInterceptor;
+import org.vessl.sql.plugin.PluginManager;
+import org.vessl.sql.plugin.PluginType;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -21,7 +24,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class SqlExecutor {
+public class SqlExecute implements SqlProcessStep {
 
     private Method method;
     private SqlMethodBean sqlMethodBean;
@@ -48,7 +51,7 @@ public class SqlExecutor {
     private Multimap<String, Integer> paramIndexMap = ArrayListMultimap.create();
 
 
-    protected SqlExecutor(Method method, SqlMethodBean sqlMethodBean) {
+    protected SqlExecute(Method method, SqlMethodBean sqlMethodBean) {
         this.method = method;
         this.sqlMethodBean = sqlMethodBean;
         this.baseSql = sqlMethodBean.getSql();
@@ -90,9 +93,9 @@ public class SqlExecutor {
      *
      * @param args
      * @return
-     * @throws Throwable
      */
-    Object execute(Object[] args) throws Throwable {
+    @Override
+    public Object execute(MapperInvoker mapperInvoker, Object[] args) throws Exception {
         try {
             Map<String, Object> argsMap = new HashMap<>();
             for (int i = 0; i < methodParameterNames.size(); i++) {
@@ -103,16 +106,16 @@ public class SqlExecutor {
             Connection connection = SqlSession.connectionThreadLocal.get();
             if (connection == null) {
                 isTrans = false;
-                connection = MapperManager.getDataSource().getConnection();
+                connection = MapperManager.getDataSource(method.getDeclaringClass()).getConnection();
             }
             try {
                 PreparedStatement statement = connection.prepareStatement(execSql);
-                packageParameter(statement, argsMap, paramIndexMap);
+                packageParameter(mapperInvoker, statement, argsMap, paramIndexMap);
 
                 if (sqlMethodBean.getSqlType() == SqlType.SELECT) {
                     ResultSet resultSet = statement.executeQuery();
                     Type returnType = method.getGenericReturnType();
-                    return parseResult(resultSet, sqlMethodBean.getReturnMode(), returnType);
+                    return parseResult(mapperInvoker, resultSet, sqlMethodBean.getReturnMode(), returnType);
                 } else {
                     return statement.executeUpdate();
 
@@ -142,11 +145,20 @@ public class SqlExecutor {
      * 为PreparedStatement参数赋值
      *
      * @param statement
-     * @param args
      * @throws Exception
      */
-    private void packageParameter(PreparedStatement statement, Map<String, Object> argsMap, Multimap<String, Integer> paramIndexMap) throws Exception {
-        SqlParameter.execute(statement, argsMap, paramIndexMap);
+    private void packageParameter(MapperInvoker mapperInvoker, PreparedStatement statement, Map<String, Object> argsMap, Multimap<String, Integer> paramIndexMap) throws Exception {
+        if (mapperInvoker == null) {
+            SqlParameter.execute(statement, argsMap, paramIndexMap);
+        } else {
+            List<PluginInterceptor> plugins = PluginManager.getPlugins(PluginType.PARAMETER);
+            if (plugins.size() == 0) {
+                SqlParameter.execute(statement, argsMap, paramIndexMap);
+            } else {
+                mapperInvoker.changePlugins(new SqlParameter(statement, argsMap, paramIndexMap), plugins);
+                mapperInvoker.invoke();
+            }
+        }
     }
 
     /**
@@ -161,8 +173,19 @@ public class SqlExecutor {
      * @throws InstantiationException
      * @throws IllegalAccessException
      */
-    private Object parseResult(ResultSet resultSet, MethodReturnMode methodReturnMode, Type type) throws NoSuchMethodException, SQLException, InvocationTargetException, InstantiationException, IllegalAccessException {
-        return SqlResult.execute(resultSet, methodReturnMode, type);
+    private Object parseResult(MapperInvoker mapperInvoker, ResultSet resultSet, MethodReturnMode methodReturnMode, Type type) throws Exception {
+        if (mapperInvoker == null) {
+            return SqlResult.execute(resultSet, methodReturnMode, type);
+        }
+        List<PluginInterceptor> plugins = PluginManager.getPlugins(PluginType.RESULT);
+        if (plugins.size() == 0) {
+            return SqlResult.execute(resultSet, methodReturnMode, type);
+        } else {
+            mapperInvoker.changePlugins(new SqlResult(resultSet, methodReturnMode, type), plugins);
+            return mapperInvoker.invoke();
+        }
+
+
     }
 
     /**

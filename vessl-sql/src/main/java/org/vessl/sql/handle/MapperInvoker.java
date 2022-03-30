@@ -3,30 +3,27 @@ package org.vessl.sql.handle;
 import org.vessl.sql.bean.SqlMethodBean;
 import org.vessl.sql.constant.SqlType;
 import org.vessl.sql.plugin.PluginInterceptor;
-import org.vessl.sql.plugin.PluginType;
 
 import java.lang.reflect.Method;
 import java.util.List;
 
 
-public class MapperMethodInvoker {
+public class MapperInvoker {
 
     private SqlMethodBean methodBean;
     private Method method;
     private Object[] args;
 
-    private PluginType pluginType = PluginType.EXECUTE;
     private List<PluginInterceptor> pluginInterceptors;
     private SqlProcessStep sqlProcessStep;
 
-    public MapperMethodInvoker(SqlMethodBean methodBean, Method method, Object[] args) {
+    MapperInvoker(SqlMethodBean methodBean, Method method, Object[] args) {
         this.methodBean = methodBean;
         this.method = method;
         this.args = args;
     }
 
-    public void changePlugins(PluginType pluginType, SqlProcessStep sqlProcessStep, List<PluginInterceptor> pluginInterceptors) {
-        this.pluginType = pluginType;
+    void changePlugins(SqlProcessStep sqlProcessStep, List<PluginInterceptor> pluginInterceptors) {
         this.sqlProcessStep = sqlProcessStep;
         this.pluginInterceptors = pluginInterceptors;
     }
@@ -39,17 +36,21 @@ public class MapperMethodInvoker {
         return args;
     }
 
-    public Method method() {
+    public Method getMethod() {
         return method;
+    }
+
+    public Object getTarget() {
+        return sqlProcessStep;
     }
 
     public SqlType getSqlType() {
         return methodBean.getSqlType();
     }
 
-    public Object invoke() throws Throwable {
+    public Object invoke() throws Exception {
         if (pluginInterceptors.size() == 0) {
-            sqlProcessStep.execute(args);
+            return sqlProcessStep.execute(this, args);
         }
 
         PluginInterceptor plugin = pluginInterceptors.remove(0);

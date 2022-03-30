@@ -1,8 +1,8 @@
 package org.vessl.sql.plugin;
 
 
-import org.vessl.base.spi.ClassScanPlugin;
-import org.vessl.base.spi.Plugin;
+import org.vessl.core.spi.ClassScanPlugin;
+import org.vessl.core.spi.Plugin;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationTargetException;

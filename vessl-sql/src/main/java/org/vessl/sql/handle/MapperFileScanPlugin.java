@@ -1,8 +1,8 @@
 package org.vessl.sql.handle;
 
 import org.apache.commons.lang3.StringUtils;
-import org.vessl.base.spi.FileScanPlugin;
-import org.vessl.base.spi.Plugin;
+import org.vessl.core.spi.FileScanPlugin;
+import org.vessl.core.spi.Plugin;
 import org.vessl.sql.bean.SqlClassBean;
 import org.vessl.sql.bean.SqlMethodBean;
 import org.vessl.sql.constant.SqlType;
@@ -43,6 +43,7 @@ public class MapperFileScanPlugin implements FileScanPlugin {
                     if (StringUtils.isEmpty(method.getType())) {
                         method.setType(SqlType.SELECT.toString());
                     }
+                    method.setSqlType(SqlType.valueOf(method.getType()));
                 }
                 MapperManager.addMapper(classBean);
             }

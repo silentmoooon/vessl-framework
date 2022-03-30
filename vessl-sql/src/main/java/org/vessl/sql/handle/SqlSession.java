@@ -19,6 +19,12 @@ public class SqlSession {
         connection.setAutoCommit(false);
         connectionThreadLocal.set(connection);
     }
+    public static void beginTrans(String datasourceName) throws SQLException {
+        DataSource dataSource = MapperManager.getDataSource(datasourceName);
+        Connection connection = dataSource.getConnection();
+        connection.setAutoCommit(false);
+        connectionThreadLocal.set(connection);
+    }
 
     public static void commit() throws SQLException {
         Connection connection = connectionThreadLocal.get();
