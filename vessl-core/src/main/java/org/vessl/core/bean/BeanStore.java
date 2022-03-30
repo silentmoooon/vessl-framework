@@ -15,6 +15,7 @@ import java.util.*;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 public class BeanStore {
 
@@ -30,7 +31,7 @@ public class BeanStore {
     /**
      * 按类型保存 k父类 v对象
      */
-    private static Table<Class<?>,Class<?>, PackageObject> beanWithParentClassMap = HashBasedTable.create();
+    private static Table<Class<?>, Class<?>, PackageObject> beanWithParentClassMap = HashBasedTable.create();
 
     /**
      * 被@Bean注解的方法
@@ -65,19 +66,31 @@ public class BeanStore {
 
 
     public static <T> T getBean(Class<T> tClass) {
-
-        PackageObject packageObject = beanWithClassMap.get(tClass);
-        if (packageObject!=null) {
+        PackageObject packageObject = getPackageObjectWithClass(tClass);
+        if (packageObject != null) {
             return (T) packageObject.getObject();
         }
 
         return null;
     }
 
+    public static <T> List<T> getBeans(Class<T> clazz) {
+        Map<Class<?>, PackageObject> row = beanWithParentClassMap.row(clazz);
+        return row.values().stream().map(packageObject -> (T) packageObject.getObject()).toList();
+    }
+
+    private <T> Map<String, T> getBeansWithMap(Class<?> clazz) {
+        Map<Class<?>, PackageObject> rows = beanWithParentClassMap.row(clazz);
+
+        return rows.values().stream().collect(Collectors.toMap(PackageObject::getBeanName, packageObject -> (T) packageObject.getObject()));
+
+
+    }
+
     static <T> T getOriginBean(Class<T> tClass) {
 
-        PackageObject packageObject = beanWithClassMap.get(tClass);
-        if (packageObject==null) {
+        PackageObject packageObject = getPackageObjectWithClass(tClass);
+        if (packageObject == null) {
             return null;
         }
         if (packageObject.isProxy) {
@@ -97,6 +110,27 @@ public class BeanStore {
         return null;
     }
 
+    private static PackageObject getPackageObjectWithClass(Class<?> clazz) {
+        PackageObject packageObject = beanWithClassMap.get(clazz);
+        if (packageObject == null) {
+            Map<Class<?>, PackageObject> row = beanWithParentClassMap.row(clazz);
+            if (row.size() == 0) {
+                return null;
+            }
+            if (row.size() == 1) {
+                for (PackageObject value : row.values()) {
+                    return value;
+                }
+            }
+            StringBuilder names = new StringBuilder();
+            for (PackageObject value : row.values()) {
+                names.append(value.getBeanName()).append(" ");
+            }
+            throw new RuntimeException("the bean with class \"" + clazz + "\" has conflicts: " + names);
+
+        }
+        return packageObject;
+    }
 
     /**
      * 依赖注入
@@ -120,12 +154,12 @@ public class BeanStore {
                 ParameterizedType genericType = (ParameterizedType) field.getGenericType();
                 Type actualTypeArgument = genericType.getActualTypeArguments()[1];
                 Class<?> clazz = TypeToken.of(actualTypeArgument).getRawType();
-                bean = getFileValueWithMap(clazz);
+                bean = getBeansWithMap(clazz);
             } else if (List.class.isAssignableFrom(fieldType)) {
                 ParameterizedType genericType = (ParameterizedType) field.getGenericType();
                 Type actualTypeArgument = genericType.getActualTypeArguments()[0];
                 Class<?> clazz = TypeToken.of(actualTypeArgument).getRawType();
-                bean = getFileValueWithList(clazz);
+                bean = getBeans(clazz);
             }
 
             if (bean == null) {
@@ -176,29 +210,6 @@ public class BeanStore {
             }
             field.setAccessible(flag);
         }
-
-    }
-
-    private <T> Map<String, T> getFileValueWithMap(Class<?> clazz) {
-        Map<String, T> map = new HashMap<>();
-        Map<Class<?>, PackageObject> rows = beanWithParentClassMap.row(clazz);
-
-        for (PackageObject value : rows.values()) {
-            map.put(value.getBeanName(), (T) value.getObject());
-        }
-
-        return map;
-
-    }
-
-    private <T> List<T> getFileValueWithList(Class<?> clazz) {
-        List<T> list = new ArrayList<>();
-        Map<Class<?>, PackageObject> rows = beanWithParentClassMap.row(clazz);
-        for (PackageObject value : rows.values()) {
-            list.add((T) value.getObject());
-        }
-
-        return list;
 
     }
 
@@ -295,14 +306,7 @@ public class BeanStore {
                 args[i] = bean;
             }
             String s = ReflectUtils.getSignature(method).toString();
-            Object o = objectMap.computeIfAbsent(s, s1 -> {
-                try {
-                    return method.getDeclaringClass().getDeclaredConstructor().newInstance();
-                } catch (InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
-                    return null;
-                    //TODO
-                }
-            });
+            Object o = objectMap.computeIfAbsent(s, s1 -> getBean(method.getDeclaringClass()));
             if (o != null) {
                 objectMap.put(ReflectUtils.getSignature(method).toString(), o);
                 try {
@@ -370,7 +374,8 @@ public class BeanStore {
             }
         }
         for (Class<?> aClass : superClass) {
-            beanWithParentClassMap.put(aClass,clazz, packageObject);
+            beanWithParentClassMap.put(aClass, clazz, packageObject);
+
         }
     }
 
@@ -385,7 +390,7 @@ public class BeanStore {
             beanWithClassMap.put(clazz, packageObject);
             List<Class<?>> superClass = getSuperClassAndInterface(clazz);
             for (Class<?> aClass : superClass) {
-                beanWithParentClassMap.put(aClass,clazz, packageObject);
+                beanWithParentClassMap.put(aClass, clazz, packageObject);
             }
         }
 

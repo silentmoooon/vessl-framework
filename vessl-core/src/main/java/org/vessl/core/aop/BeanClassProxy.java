@@ -69,20 +69,11 @@ public class BeanClassProxy implements MethodInterceptor, InvocationHandler {
             if (executeInterceptors.size() == 0) {
                 return method.invoke(target, objects);
             }
-            int executeIndex = 0;
-            ExecuteInterceptor executeInterceptor = executeInterceptors.get(executeIndex);
+            ProxyData proxyData = new ProxyData(signature, method, target, objects);
 
-            executeInterceptor.beforeHandle(signature, objects);
-            Object handle;
-            try {
-                handle = executeInterceptor.handle(new MethodExecutor(executeInterceptors, ++executeIndex, signature, method, target, objects));
-                executeInterceptor.afterHandle(signature);
-                executeInterceptor.afterReturn(signature, objects, handle);
-                return handle;
-            } catch (Throwable e) {
-                executeInterceptor.afterException(signature, objects, e);
-                throw e;
-            }
+            return new ProxyExecutor(executeInterceptors,proxyData ).invoke();
+
+
 
         } else {
             return method.invoke(target, objects);

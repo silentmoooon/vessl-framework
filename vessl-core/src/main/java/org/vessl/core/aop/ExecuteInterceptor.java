@@ -1,18 +1,16 @@
 package org.vessl.core.aop;
 
-import net.sf.cglib.core.Signature;
-
 import java.lang.annotation.Annotation;
 
 public interface ExecuteInterceptor {
     Class<? extends Annotation>[] targetAnnotation();
 
-    void beforeHandle(Signature signature,Object[] args);
-    default Object handle(MethodExecutor methodExecutor) throws Throwable{
-        return methodExecutor.invoke();
+    void beforeHandle(ProxyData proxyData);
+    default Object handle(ProxyExecutor proxyExecutor) throws Throwable{
+        return proxyExecutor.invoke();
     }
-    void afterHandle(Signature signature);
+    void afterHandle(ProxyData proxyData);
 
-    void afterReturn(Signature signature,Object[] args,Object result);
-    void afterException(Signature signature,Object[] args,Throwable e);
+    void afterReturn(ProxyData proxyData,Object result);
+    void afterException(ProxyData proxyData,Throwable e);
 }

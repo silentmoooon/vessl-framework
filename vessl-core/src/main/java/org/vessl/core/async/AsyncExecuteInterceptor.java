@@ -1,11 +1,11 @@
 package org.vessl.core.async;
 
-import net.sf.cglib.core.Signature;
-import org.vessl.core.bean.Inject;
-import org.vessl.core.aop.MethodExecutor;
-import org.vessl.core.bean.Order;
 import org.vessl.core.aop.Aop;
 import org.vessl.core.aop.ExecuteInterceptor;
+import org.vessl.core.aop.ProxyData;
+import org.vessl.core.aop.ProxyExecutor;
+import org.vessl.core.bean.Inject;
+import org.vessl.core.bean.Order;
 
 import java.lang.annotation.Annotation;
 import java.util.concurrent.Callable;
@@ -26,22 +26,22 @@ public class AsyncExecuteInterceptor implements ExecuteInterceptor {
     }
 
     @Override
-    public void beforeHandle(Signature signature, Object[] args) {
+    public void beforeHandle(ProxyData proxyData) {
 
     }
 
     @Override
-    public void afterHandle(Signature signature) {
+    public void afterHandle(ProxyData proxyData) {
 
     }
 
     @Override
-    public Object handle(MethodExecutor methodExecutor) throws Throwable {
+    public Object handle(ProxyExecutor proxyExecutor) throws Throwable {
 
         Callable<Object> task = () -> {
 
             try {
-                return methodExecutor.invoke();
+                return proxyExecutor.invoke();
             } catch (Throwable e) {
                 throw new RuntimeException(e);
             }
@@ -49,7 +49,7 @@ public class AsyncExecuteInterceptor implements ExecuteInterceptor {
 
         };
 
-        Class<?> returnType = methodExecutor.getMethod().getReturnType();
+        Class<?> returnType = proxyExecutor.getMethod().getReturnType();
         if (Void.class.isAssignableFrom(returnType)) {
             threadPoolExecutor.submit(task);
         } else if (CompletableFuture.class.isAssignableFrom(returnType)) {
@@ -78,12 +78,12 @@ public class AsyncExecuteInterceptor implements ExecuteInterceptor {
     }
 
     @Override
-    public void afterReturn(Signature signature, Object[] args, Object result) {
+    public void afterReturn(ProxyData proxyData, Object result) {
 
     }
 
     @Override
-    public void afterException(Signature signature, Object[] args, Throwable e) {
+    public void afterException(ProxyData proxyData, Throwable e) {
 
     }
 }

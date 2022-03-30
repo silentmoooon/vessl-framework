@@ -4,7 +4,9 @@ import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class WebServer {
 
     private int port = 8080;
@@ -27,7 +29,7 @@ public class WebServer {
                 .childHandler(httpServerInitializer);
 
         channelFuture = serverBootstrap.bind(port);
-
+        log.info("the webServer is started,bind port:{}",port);
     }
 
     public void destroy() {
