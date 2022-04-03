@@ -55,15 +55,11 @@ public class MapperProxy implements MethodInterceptor, InvocationHandler {
         if (methodExecutorMap.containsKey(signature)) {
             SqlExecute sqlExecute = methodExecutorMap.get(signature);
 
-            if (PluginManager.size() == 0) {
-                return sqlExecute.execute(null, objects);
-            }
             List<PluginInterceptor> plugins = PluginManager.getPlugins(PluginType.EXECUTE);
             if (plugins.size() == 0) {
-                return sqlExecute.execute(null, objects);
+                return sqlExecute.execute(sqlExecute.getSqlMethodBean(), objects);
             }
-            MapperInvoker mapperInvoker = new MapperInvoker(sqlExecute.getSqlMethodBean(), method, objects);
-            mapperInvoker.changePlugins(sqlExecute, plugins);
+            MapperInvoker mapperInvoker = new MapperInvoker(sqlExecute.getSqlMethodBean(),plugins,sqlExecute, objects);
             return mapperInvoker.invoke();
 
         }

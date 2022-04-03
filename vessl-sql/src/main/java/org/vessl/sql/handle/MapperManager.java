@@ -127,7 +127,6 @@ public class MapperManager {
 
             for (Class<?> aClass : mapperProxyMap.keySet()) {
                 if (aClass.getPackageName().startsWith(sqlConfig.getBasePackage())) {
-
                     mapperDatasourceMap.put(aClass, sqlConfig.getDatasourceName());
                 }
 

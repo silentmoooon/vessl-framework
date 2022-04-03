@@ -95,7 +95,7 @@ public class SqlExecute implements SqlProcessStep {
      * @return
      */
     @Override
-    public Object execute(MapperInvoker mapperInvoker, Object[] args) throws Exception {
+    public Object execute(SqlMethodBean sqlMethodBean, Object[] args) throws Exception {
         try {
             Map<String, Object> argsMap = new HashMap<>();
             for (int i = 0; i < methodParameterNames.size(); i++) {
@@ -110,12 +110,12 @@ public class SqlExecute implements SqlProcessStep {
             }
             try {
                 PreparedStatement statement = connection.prepareStatement(execSql);
-                packageParameter(mapperInvoker, statement, argsMap, paramIndexMap);
+                packageParameter(sqlMethodBean, statement, argsMap, paramIndexMap);
 
                 if (sqlMethodBean.getSqlType() == SqlType.SELECT) {
                     ResultSet resultSet = statement.executeQuery();
                     Type returnType = method.getGenericReturnType();
-                    return parseResult(mapperInvoker, resultSet, sqlMethodBean.getReturnMode(), returnType);
+                    return parseResult(sqlMethodBean, resultSet, sqlMethodBean.getReturnMode(), returnType);
                 } else {
                     return statement.executeUpdate();
 
@@ -147,17 +147,12 @@ public class SqlExecute implements SqlProcessStep {
      * @param statement
      * @throws Exception
      */
-    private void packageParameter(MapperInvoker mapperInvoker, PreparedStatement statement, Map<String, Object> argsMap, Multimap<String, Integer> paramIndexMap) throws Exception {
-        if (mapperInvoker == null) {
+    private void packageParameter(SqlMethodBean sqlMethodBean, PreparedStatement statement, Map<String, Object> argsMap, Multimap<String, Integer> paramIndexMap) throws Exception {
+        List<PluginInterceptor> plugins = PluginManager.getPlugins(PluginType.PARAMETER);
+        if (plugins.size() == 0) {
             SqlParameter.execute(statement, argsMap, paramIndexMap);
         } else {
-            List<PluginInterceptor> plugins = PluginManager.getPlugins(PluginType.PARAMETER);
-            if (plugins.size() == 0) {
-                SqlParameter.execute(statement, argsMap, paramIndexMap);
-            } else {
-                mapperInvoker.changePlugins(new SqlParameter(statement, argsMap, paramIndexMap), plugins);
-                mapperInvoker.invoke();
-            }
+            new MapperInvoker(sqlMethodBean, plugins, new SqlParameter(), new Object[]{statement, argsMap, paramIndexMap}).invoke();
         }
     }
 
@@ -173,16 +168,13 @@ public class SqlExecute implements SqlProcessStep {
      * @throws InstantiationException
      * @throws IllegalAccessException
      */
-    private Object parseResult(MapperInvoker mapperInvoker, ResultSet resultSet, MethodReturnMode methodReturnMode, Type type) throws Exception {
-        if (mapperInvoker == null) {
-            return SqlResult.execute(resultSet, methodReturnMode, type);
-        }
+    private Object parseResult(SqlMethodBean sqlMethodBean, ResultSet resultSet, MethodReturnMode methodReturnMode, Type type) throws Exception {
+
         List<PluginInterceptor> plugins = PluginManager.getPlugins(PluginType.RESULT);
         if (plugins.size() == 0) {
             return SqlResult.execute(resultSet, methodReturnMode, type);
         } else {
-            mapperInvoker.changePlugins(new SqlResult(resultSet, methodReturnMode, type), plugins);
-            return mapperInvoker.invoke();
+            return new MapperInvoker(sqlMethodBean, plugins, new SqlResult(), new Object[]{resultSet, methodReturnMode, type}).invoke();
         }
 
 

@@ -1,8 +1,8 @@
 package org.vessl.sql.handle;
 
-import lombok.AllArgsConstructor;
 import org.apache.commons.beanutils.PropertyUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.vessl.sql.bean.SqlMethodBean;
 import org.vessl.sql.constant.MethodReturnMode;
 
 import java.lang.reflect.InvocationTargetException;
@@ -15,17 +15,11 @@ import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
 
-@AllArgsConstructor
 public class SqlResult implements SqlProcessStep {
 
-    private ResultSet resultSet;
-    private MethodReturnMode returnMode;
-    private Type type;
-
-
     @Override
-    public Object execute(MapperInvoker mapperInvoker,Object[] args) throws Exception {
-        return execute(resultSet, returnMode, type);
+    public Object execute(SqlMethodBean sqlMethodBean, Object[] args) throws Exception {
+        return execute((ResultSet) args[0], (MethodReturnMode) args[1], (Type) args[2]);
     }
 
     /**

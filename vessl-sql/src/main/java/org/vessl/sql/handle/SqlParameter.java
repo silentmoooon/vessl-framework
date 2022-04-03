@@ -1,9 +1,9 @@
 package org.vessl.sql.handle;
 
 import com.google.common.collect.Multimap;
-import lombok.AllArgsConstructor;
 import org.apache.commons.beanutils.PropertyUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.vessl.sql.bean.SqlMethodBean;
 
 import java.sql.PreparedStatement;
 import java.util.ArrayList;
@@ -11,16 +11,12 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
-@AllArgsConstructor
 public class SqlParameter implements SqlProcessStep {
 
-    private PreparedStatement statement;
-    private Map<String, Object> argsMap;
-    private Multimap<String, Integer> paramIndexMap;
 
     @Override
-    public Object execute(MapperInvoker mapperInvoker,Object[] args) throws Exception {
-        execute(statement, argsMap, paramIndexMap);
+    public Object execute(SqlMethodBean sqlMethodBean, Object[] args) throws Exception {
+        execute((PreparedStatement) args[0], (Map<String, Object>) args[1], (Multimap<String, Integer>) args[2]);
         return null;
     }
 
